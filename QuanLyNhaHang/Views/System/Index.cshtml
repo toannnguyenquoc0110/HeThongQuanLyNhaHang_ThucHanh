@@ -1,0 +1,25 @@
+@model SystemVM
+@{ ViewData["Title"] = "Dữ liệu"; var max = Math.Max(1, Model.Counts.Max(c => c.Rows)); }
+<div class="head"><div><h1>Dữ liệu hệ thống</h1><p>Tình trạng database, số dòng từng bảng và nhật ký thao tác của nhân viên.</p></div>
+    <div class="noprint"><a class="btn p" asp-action="Backup">Tải bản sao lưu</a></div></div>
+
+<div class="rev">
+    <div class="big"><b>@(Model.Provider == "PostgreSql" ? "PostgreSQL" : "SQLite")</b><span>@Model.Location</span></div>
+    <div><b><span class="dot @(Model.CanConnect ? "ok" : "bad")"></span>@(Model.CanConnect ? "Kết nối tốt" : "Mất kết nối")</b><span>Phản hồi @Model.PingMs ms</span></div>
+    <div><b>@Model.TableCount</b><span>Bảng dữ liệu, @Model.IndexCount chỉ mục và khóa ngoại</span></div>
+    <div><b>@(Model.IsSqlite ? Model.SizeKb + " KB" : "—")</b><span>@(Model.IsSqlite ? "Dung lượng file" : "Xem dung lượng bằng Adminer")</span></div>
+</div>
+
+<div class="split">
+    <div class="card"><h2>Số dòng theo bảng</h2>
+        @foreach (var c in Model.Counts)
+        {
+            <div class="rowbar"><span>@c.Name</span><div class="bar"><i style="width:@((int)(c.Rows * 100L / max))%"></i></div><b class="num">@c.Rows.ToString("N0").Replace(",", ".")</b></div>
+        }
+    </div>
+    <div class="card scroll"><h2>Nhật ký thao tác</h2>
+        @if (!Model.Logs.Any()) { <div class="empty">Chưa có thao tác nào được ghi lại.</div> }
+        <table><thead><tr><th>Giờ</th><th>Vai trò</th><th>Việc làm</th></tr></thead>
+        @foreach (var l in Model.Logs) { <tr><td class="nowrap num small">@l.At.ToString("dd/MM HH:mm")</td><td><span class="chip b">@l.Actor</span></td><td><b>@l.Action</b><div class="small muted">@l.Detail</div></td></tr> }</table>
+    </div>
+</div>
