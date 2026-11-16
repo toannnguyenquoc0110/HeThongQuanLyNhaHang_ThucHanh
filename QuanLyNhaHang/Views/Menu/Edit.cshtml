@@ -1,0 +1,29 @@
+@model MenuItem
+@{ ViewData["Title"] = "Sửa món"; var cats = (List<MenuCategory>)ViewBag.Categories; var ings = (List<Ingredient>)ViewBag.Ingredients; var costInfo = (QuanLyNhaHang.Services.CostingService.CostResult)ViewBag.CostInfo; }
+<div class="head"><div><h1>@Model.Icon @Model.Name</h1><p>Công thức dùng để trừ kho tự động và tính giá vốn.</p></div><a class="btn" asp-action="Index">← Thực đơn</a></div>
+<div class="grid g2" style="align-items:start">
+    <div class="card"><h2>Thông tin món</h2>
+        <form method="post" asp-action="Edit" class="form" style="grid-template-columns:1fr 1fr">
+            <input type="hidden" name="Id" value="@Model.Id" />
+            <div style="grid-column:1/-1"><label for="n">Tên món</label><input class="in" id="n" name="Name" value="@Model.Name" required /></div>
+            <div><label for="c">Nhóm</label><select class="in" id="c" name="CategoryId">@foreach (var c in cats) { <option value="@c.Id" selected="@(c.Id == Model.CategoryId)">@c.Name</option> }</select></div>
+            <div><label for="i">Biểu tượng (emoji)</label><input class="in" id="i" name="Icon" value="@Model.Icon" /></div>
+            <div><label for="p">Giá bán (đ)</label><input class="in" id="p" type="number" min="0" name="Price" value="@((long)Model.Price)" /></div>
+            <div><label for="k">Giá vốn tự tính</label><input class="in" id="k" value="@(costInfo.Complete ? costInfo.Cost.ToString("N0") + " đ" : "Chưa đủ công thức/giá nguyên liệu")" readonly /><small class="muted">Lấy từ công thức và giá nguyên liệu, không nhập tay.</small></div>
+            <div><label for="t">Chế biến (phút)</label><input class="in" id="t" type="number" min="1" name="PrepMinutes" value="@Model.PrepMinutes" /></div>
+            <div><label for="a">Dị ứng</label><input class="in" id="a" name="Allergens" value="@Model.Allergens" /></div>
+            <div style="grid-column:1/-1"><label for="u">Đường dẫn ảnh</label><input class="in" id="u" name="ImageUrl" value="@Model.ImageUrl" /></div>
+            <div style="grid-column:1/-1"><label for="d">Mô tả</label><textarea class="in" id="d" name="Description">@Model.Description</textarea></div>
+            <button class="btn p" style="grid-column:1/-1">Lưu thay đổi</button>
+        </form></div>
+    <div class="card"><h2>Công thức (1 phần)</h2>
+        @if (!Model.Recipes.Any()) { <div class="empty">Chưa có nguyên liệu nào.</div> }
+        <table>@foreach (var r in Model.Recipes) { <tr><td>@r.Ingredient.Name</td><td class="right num">@Fmt.Num(r.Qty) @r.Ingredient.Unit</td><td class="right num muted">@Fmt.Vnd(r.Qty * r.Ingredient.Cost)</td>
+            <td class="right"><form method="post" asp-action="RemoveRecipe"><input type="hidden" name="id" value="@r.Id" /><input type="hidden" name="menuItemId" value="@Model.Id" /><button class="btn s ghost" aria-label="Xóa nguyên liệu">Xóa</button></form></td></tr> }</table>
+        <form method="post" asp-action="AddRecipe" style="display:flex;gap:8px;margin-top:12px;align-items:end;flex-wrap:wrap">
+            <input type="hidden" name="menuItemId" value="@Model.Id" />
+            <div style="flex:2;min-width:160px"><label for="gi">Nguyên liệu</label><select class="in" id="gi" name="ingredientId">@foreach (var i in ings) { <option value="@i.Id">@i.Name (@i.Unit)</option> }</select></div>
+            <div style="flex:1;min-width:90px"><label for="gq">Số lượng</label><input class="in" id="gq" type="number" min="0" step="0.01" name="qty" required /></div>
+            <button class="btn p">Thêm</button></form>
+        <p class="small muted">Thêm hoặc đổi nguyên liệu sẽ tính lại giá vốn theo giá nhập mới nhất.</p></div>
+</div>
