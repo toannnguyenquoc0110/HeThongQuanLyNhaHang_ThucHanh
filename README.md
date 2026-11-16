@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Vị Nhà — Hệ thống quản lý nhà hàng + đặt món online
 
 Ứng dụng ASP.NET Core MVC, C# và Entity Framework Core (.NET 8), mặc định dùng SQLite với Code First. Dữ liệu mẫu được nạp từ `Data/SeedData.cs` khi database mới chưa có chi nhánh.
@@ -91,3 +92,7 @@ Mật khẩu chỉ lưu dạng hash thông qua `PasswordHasher<CustomerAccount>`
 ### Ghi chú xử lý đăng nhập/đăng xuất
 - Đăng xuất khách hàng và nhân viên phải gửi bằng biểu mẫu `POST` có `@Html.AntiForgeryToken()`; không đổi nút đăng xuất thành liên kết `href`. Nếu trình duyệt vẫn báo lỗi tại URL đăng xuất, dừng ứng dụng rồi chạy lại để tải bản mới.
 - Chỉ giữ **một** controller xử lý route `/nhan-vien/dang-nhap`. Nếu dự án có cả `SessionController` và `StaffAuthController` cùng khai báo route này, hãy gộp chức năng và xóa controller trùng hoặc đổi route của một controller; nếu không sẽ phát sinh `AmbiguousMatchException`.
+=======
+# HeThongQuanLyNhaHang_ThucHanh
+Công Nghệ Phần Mềm Nâng Cao ( Thực Hành ) - Kim Giao 
+>>>>>>> e416a70e5311771e0d11cb9fbb2e535904de0459
