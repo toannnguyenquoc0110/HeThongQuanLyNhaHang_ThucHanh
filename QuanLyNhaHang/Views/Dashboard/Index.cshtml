@@ -1,0 +1,89 @@
+@model DashboardVM
+@{ ViewData["Title"] = "Tổng quan"; var branch = (Branch)ViewBag.Branch; var maxRev = Model.ByBranch.Max(x => x.Revenue); if (maxRev == 0) { maxRev = 1; } }
+<div class="head"><div><h1>Tổng quan hôm nay</h1><p>@branch.Name · @branch.Address</p></div>
+    <a class="btn p" asp-controller="Tables" asp-action="Index">Mở sơ đồ bàn</a></div>
+
+<div class="rev">
+    <div class="big"><b>@Fmt.Vnd(Model.RevenueToday)</b><span>Doanh thu hôm nay, @Model.OrdersToday đơn đã thanh toán</span></div>
+    <div><b>@Fmt.Vnd(Model.ProfitToday)</b><span>Lợi nhuận gộp (giá bán trừ giá vốn)</span></div>
+    <div><b>@Model.OpenOrders</b><span>Bàn đang phục vụ</span></div>
+    <div><b>@Model.PendingRes</b><span>Lịch đặt bàn chưa đến</span></div>
+</div>
+
+@{
+    const int W = 720, H = 150, PX = 8, PY = 18;
+    var wk = Model.Week; var wmax = wk.Any() ? wk.Max(x => x.Revenue) : 0; if (wmax == 0) { wmax = 1; }
+    var pts = wk.Select((x, i) => (X: PX + i * (W - 2 * PX) / Math.Max(1, wk.Count - 1), Y: H - PY - (double)(x.Revenue / wmax) * (H - 2 * PY - 10), x.Day, x.Revenue)).ToList();
+    string F(double v) => v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+    var line = string.Join(" ", pts.Select(p => F(p.X) + "," + F(p.Y)));
+    var area = pts.Any() ? "M" + F(pts[0].X) + "," + F(H - PY) + " L" + line.Replace(" ", " L") + " L" + F(pts[^1].X) + "," + F(H - PY) + " Z" : "";
+    var wsum = wk.Sum(x => x.Revenue);
+    var prev = wk.Count > 1 ? wk[^2].Revenue : 0; var cur = wk.Any() ? wk[^1].Revenue : 0;
+}
+<section class="card trend" aria-labelledby="trendH">
+    <div class="trend-top"><div><h2 id="trendH">Doanh thu 7 ngày gần nhất</h2><p class="muted small" style="margin:4px 0 0">Tổng @Fmt.Vnd(wsum) · hôm nay @(cur >= prev ? "cao hơn" : "thấp hơn") hôm qua @Fmt.Vnd(Math.Abs(cur - prev))</p></div></div>
+    <svg viewBox="0 0 @W @H" class="trend-svg" role="img" aria-label="Biểu đồ doanh thu 7 ngày">
+        <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--cham)" stop-opacity=".28" /><stop offset="1" stop-color="var(--cham)" stop-opacity="0" /></linearGradient></defs>
+        @for (var g = 0; g < 4; g++) { <line x1="@PX" x2="@(W - PX)" y1="@F(PY + 10 + g * (H - 2 * PY - 10) / 3.0)" y2="@F(PY + 10 + g * (H - 2 * PY - 10) / 3.0)" class="grid-l" /> }
+        @if (pts.Any()) { <path d="@area" fill="url(#ag)" /><polyline points="@line" class="trend-line" /> }
+        @foreach (var p in pts)
+        {
+            <g class="pt"><circle cx="@F(p.X)" cy="@F(p.Y)" r="3.5" /><title>@p.Day.ToString("dd/MM"): @Fmt.Vnd(p.Revenue)</title></g>
+            @Html.Raw("<" + "text x=\"" + F(p.X) + "\" y=\"" + (H - 1) + "\" text-anchor=\"middle\" class=\"ax\">" + p.Day.ToString("dd/MM") + "</" + "text>")
+        }
+    </svg>
+</section>
+
+<div class="split">
+    <div class="card">
+        <h2>Doanh thu theo chi nhánh</h2>
+        @foreach (var x in Model.ByBranch)
+        {
+            <div style="margin-bottom:12px">
+                <div class="sum"><span>@x.Branch.Name</span><b class="num">@Fmt.Vnd(x.Revenue)</b></div>
+                <div class="bar"><i style="width:@((int)(x.Revenue * 100 / maxRev))%"></i></div>
+                <span class="small muted">@x.Orders đơn đã thanh toán</span>
+            </div>
+        }
+    </div>
+    <div class="card">
+        <h2>Món bán chạy hôm nay</h2>
+        @if (!Model.TopItems.Any()) { <div class="empty">Chưa có đơn nào được thanh toán hôm nay.</div> }
+        <table>@foreach (var t in Model.TopItems) { <tr><td>@t.Name</td><td class="right num"><b>@t.Qty</b> phần</td></tr> }</table>
+    </div>
+</div>
+
+<div class="split3">
+    <div class="card">
+        <h2>Nguyên liệu sắp hết</h2>
+        @if (!Model.Low.Any()) { <div class="empty">Tồn kho đang ổn.</div> }
+        <table>
+            @foreach (var s in Model.Low)
+            {
+                <tr><td>@s.Ingredient.Name</td><td class="right num">@Fmt.Num(s.Quantity) / @Fmt.Num(s.Ingredient.MinLevel) @s.Ingredient.Unit</td></tr>
+            }
+        </table>
+        <a asp-controller="Inventory" asp-action="Index" asp-route-tab="purchase" class="btn s" style="margin-top:8px">Lập đơn nhập hàng</a>
+    </div>
+    <div class="card">
+        <h2>Sắp hết hạn (7 ngày)</h2>
+        @if (!Model.Expiring.Any()) { <div class="empty">Không có lô nào sắp hết hạn.</div> }
+        <table>@foreach (var s in Model.Expiring) { <tr><td>@s.Ingredient.Name</td><td class="right"><span class="chip a">@Fmt.Dmy(s.ExpiryDate.Value)</span></td></tr> }</table>
+    </div>
+    <div class="card">
+        <h2>Đặt bàn sắp tới</h2>
+        @if (!Model.NextRes.Any()) { <div class="empty">Hôm nay chưa có lịch đặt.</div> }
+        <table>@foreach (var r in Model.NextRes) { <tr><td><b>@r.Time</b> · @r.CustomerName<div class="small muted">@r.Table.Name · @r.Pax khách</div></td></tr> }</table>
+    </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+    <h2>Nhân viên có ca hôm nay (@Model.OnShift.Count)</h2>
+    @if (!Model.OnShift.Any()) { <div class="empty">Chưa xếp ca cho hôm nay. Vào mục Nhân sự để xếp ca.</div> }
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+        @foreach (var o in Model.OnShift)
+        {
+            <span class="chip @(o.Emp.Role == Role.Bep ? "a" : o.Emp.Role == Role.PhucVu ? "g" : "b")">@o.Emp.FullName · @RoleMap.Name(o.Emp.Role) · @o.Shift.Name</span>
+        }
+    </div>
+</div>

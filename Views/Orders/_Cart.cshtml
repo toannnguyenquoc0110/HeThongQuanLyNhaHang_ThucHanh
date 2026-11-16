@@ -1,0 +1,61 @@
+@model CartVM
+@{
+    var o = Model.Order; var b = Model.Bill;
+    var lines = o.Lines.Where(l => l.Status != St.Cancel).OrderBy(l => l.Id).ToList();
+    var unsent = lines.Count(l => l.Status == St.New);
+    var ready = lines.Count(l => l.Status == St.Done);
+    var title = o.Table != null ? o.Table.Name : "Mang về";
+}
+<div class="hd">
+    <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:1.15rem">@title</b><span>Đơn #@o.Id</span></div>
+    <small>@o.Pax khách · @(o.CustomerName ?? "Khách lẻ") · mở lúc @Fmt.Hm(o.OpenedAt)</small>
+</div>
+<div class="ls">
+    @if (!lines.Any()) { <div class="empty">Chạm vào món bên trái để thêm vào đơn.</div> }
+    @foreach (var l in lines)
+    {
+        <div class="ln">
+            <div class="r1"><span>@l.Name</span><span class="num">@Fmt.Vnd(l.Qty * l.Price)</span></div>
+            <div class="r2">
+                @if (l.Status == St.New)
+                {
+                    <div class="qty">
+                        <button type="button" aria-label="Giảm" data-post="/Orders/Qty" data-body="lineId=@l.Id&delta=-1" data-target="#cart">−</button>
+                        <span>@l.Qty</span>
+                        <button type="button" aria-label="Tăng" data-post="/Orders/Qty" data-body="lineId=@l.Id&delta=1" data-target="#cart">+</button>
+                    </div>
+                }
+                else { <b>x@(l.Qty)</b> }
+                <span class="chip @Fmt.Chip(l.Status)">@l.Status</span>
+                @if (l.Status == St.Done) { <button class="btn s p" type="button" data-post="/Orders/Serve" data-body="lineId=@l.Id" data-target="#cart">Đã mang ra</button> }
+                @if (l.Status != St.Cook && l.Status != St.Done && l.Status != St.Served) { <button class="btn s ghost" type="button" aria-label="Xóa món" data-post="/Orders/Remove" data-body="lineId=@l.Id" data-target="#cart" data-confirm="Xóa @l.Name khỏi đơn?">Xóa</button> }
+            </div>
+            @if (l.Status == St.New)
+            {
+                <form data-target="#cart" action="/Orders/Note" method="post" style="margin-top:6px">
+                    <input type="hidden" name="lineId" value="@l.Id" />
+                    <input class="in" style="min-height:36px;font-size:.88rem" name="note" value="@l.Note" placeholder="Ghi chú (ít cay, không hành…)" onchange="this.form.requestSubmit()" />
+                </form>
+            }
+            else if (!string.IsNullOrEmpty(l.Note)) { <div class="note">Ghi chú: @l.Note</div> }
+        </div>
+    }
+</div>
+<div class="ft">
+    <form data-target="#cart" action="/Orders/Coupon" method="post" style="display:flex;gap:6px;margin-bottom:8px">
+        <input type="hidden" name="orderId" value="@o.Id" />
+        <input class="in" style="min-height:40px" name="code" value="@o.Coupon?.Code" placeholder="Mã giảm giá" autocapitalize="characters" />
+        <button class="btn s">Áp dụng</button>
+    </form>
+    <div class="sum"><span>Tạm tính</span><span class="num">@Fmt.Vnd(b.Sub)</span></div>
+    @if (b.Disc > 0) { <div class="sum"><span>Giảm giá@(o.Coupon != null ? " (" + o.Coupon.Code + ")" : "")</span><span class="num">−@Fmt.Vnd(b.Disc)</span></div> }
+    <div class="sum"><span>Phí phục vụ @((o.Branch.ServiceRate * 100).ToString("0.#"))%</span><span class="num">@Fmt.Vnd(b.Fee)</span></div>
+    <div class="sum"><span>VAT @((o.Branch.VatRate * 100).ToString("0.#"))%</span><span class="num">@Fmt.Vnd(b.Vat)</span></div>
+    @if (b.Deposit > 0) { <div class="sum"><span>Đã đặt cọc</span><span class="num">−@Fmt.Vnd(b.Deposit)</span></div> }
+    <div class="sum t"><span>Cần thanh toán</span><span class="num">@Fmt.Vnd(b.Total)</span></div>
+    <div class="acts">
+        <button class="btn p" type="button" @(unsent == 0 ? "disabled" : "") data-post="/Orders/Send" data-body="orderId=@o.Id" data-target="#cart">Gửi bếp@(unsent > 0 ? " (" + unsent + ")" : "")</button>
+        <button class="btn" type="button" data-open="#mPay" @(lines.Count == 0 ? "disabled" : "")>Thanh toán</button>
+    </div>
+    @if (ready > 0) { <div class="small" style="margin-top:8px;color:var(--brand-d)"><b>@ready món đã xong</b>, đang chờ mang ra bàn.</div> }
+</div>

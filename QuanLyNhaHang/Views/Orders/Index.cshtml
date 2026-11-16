@@ -1,0 +1,40 @@
+@model List<Order>
+@{ ViewData["Title"] = "Đơn hôm nay"; var date = (DateTime)ViewBag.Date; var status = (string)ViewBag.Status; }
+<div class="head"><div><h1>Đơn hàng</h1><p>@Fmt.Dmy(date) · @Model.Count đơn · doanh thu @Fmt.Vnd(Model.Where(OrderRules.IsRevenueOrder).Sum(o => o.Total))</p></div>
+    <form method="get" style="display:flex;gap:8px;align-items:end">
+        <div><label for="d">Ngày</label><input class="in" type="date" id="d" name="date" value="@date.ToString("yyyy-MM-dd")" /></div>
+        <div><label for="s">Trạng thái</label><select class="in" id="s" name="status"><option value="">Tất cả</option>@foreach (var s in new[] { St.New, St.Wait, St.Open, St.Paid, St.Void }) { <option selected="@(s == status)">@s</option> }</select></div>
+        <button class="btn p">Lọc</button></form></div>
+<div class="card scroll">
+    @if (!Model.Any()) { <div class="empty">Không có đơn nào trong ngày này.</div> }
+    else {
+    <table><thead><tr><th>Đơn / loại</th><th>Bàn / nhận hàng</th><th>Giờ</th><th>Phục vụ</th><th>Khách</th><th class="right">Số món</th><th class="right">Tổng</th><th>Trạng thái</th><th></th></tr></thead>
+    @foreach (var o in Model)
+    {
+        var sub = o.Lines.Where(l => l.Status != St.Cancel).Sum(l => l.Qty * l.Price);
+        <tr><td>#@o.Id<div class="small muted">@o.Type</div></td><td>@(o.Table?.Name ?? (o.FulfillmentType == "Tại quán" ? "Mang về" : o.FulfillmentType))</td><td>@Fmt.Hm(o.OpenedAt)</td><td>@(o.Employee?.FullName ?? "—")</td><td>@(o.Type == "Online" ? o.CustomerName : o.Pax + " khách")</td>
+            <td class="right">@o.Lines.Count(l => l.Status != St.Cancel)</td><td class="right num">@Fmt.Vnd(OrderRules.IsRevenueOrder(o) ? o.Total : sub)</td>
+            <td><span class="chip @Fmt.Chip(o.Status)">@o.Status</span></td>
+            <td class="right nowrap">
+                @if (o.Type == "Online" && o.Status == St.New) {
+                    <form method="post" asp-action="AcceptOnline" asp-route-id="@o.Id" style="display:inline">@Html.AntiForgeryToken()<button class="btn s">Tiếp nhận</button></form>
+                    <form method="post" asp-action="RejectOnline" asp-route-id="@o.Id" style="display:inline" onsubmit="return askRejectReason(this)">@Html.AntiForgeryToken()<button class="btn s">Từ chối</button></form>
+                } else if (o.Type == "Online" && (o.Status == St.Delivering || o.Status == St.OnlineReady)) {
+                    <form method="post" asp-action="CompleteOnline" asp-route-id="@o.Id" style="display:inline">@Html.AntiForgeryToken()<button class="btn s">Xác nhận hoàn tất</button></form>
+                } else if (o.Type == "Online" && o.Status == St.Completed && o.PaymentMethod == "COD" && o.PaymentStatus != "Đã thanh toán") {
+                    <form method="post" asp-action="MarkCodPaid" asp-route-id="@o.Id" style="display:inline" onsubmit="return confirm('Xác nhận đã thu đủ tiền COD từ khách?')">@Html.AntiForgeryToken()<button class="btn s">Xác nhận thu COD</button></form>
+                } else { <a class="btn s" asp-action="@(o.Status == St.Open ? "Screen" : "Receipt")" asp-route-id="@o.Id">@(o.Status == St.Open ? "Mở" : "Xem")</a> }
+            </td></tr>
+    }</table> }
+</div>
+
+<script>
+function askRejectReason(form) {
+  var r = prompt('Lý do từ chối đơn?');
+  if (!r) return false;
+  var input = document.createElement('input');
+  input.type = 'hidden'; input.name = 'reason'; input.value = r;
+  form.appendChild(input);
+  return true;
+}
+</script>

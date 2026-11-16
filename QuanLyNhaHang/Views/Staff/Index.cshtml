@@ -1,0 +1,109 @@
+@{
+    ViewData["Title"] = "Nhân sự"; var tab = (string)ViewBag.Tab; var emps = (List<Employee>)ViewBag.Emps;
+    var shifts = (List<Shift>)ViewBag.Shifts; var assign = (List<ShiftAssignment>)ViewBag.Assign; var week = (DateTime)ViewBag.Week;
+    var today = (List<Attendance>)ViewBag.Today; var todayShifts = (List<ShiftAssignment>)ViewBag.TodayShifts; var leaves = (List<LeaveRequest>)ViewBag.Leaves;
+    var pay = (List<Payroll>)ViewBag.Payrolls; int month = ViewBag.Month, year = ViewBag.Year; var branch = (Branch)ViewBag.Branch;
+}
+<div class="head"><div><h1>Nhân sự</h1><p>@branch.Name · @emps.Count(e => e.Active) nhân viên đang làm (@emps.Count(e => e.Active && e.Role == Role.PhucVu) phục vụ, @emps.Count(e => e.Active && e.Role == Role.Bep) bếp, @emps.Count(e => e.Active && e.Role == Role.QuanLy) quản lý)</p></div></div>
+<div class="tabs">
+    <a class="@(tab == "list" ? "on" : "")" asp-action="Index" asp-route-tab="list">Hồ sơ</a>
+    <a class="@(tab == "schedule" ? "on" : "")" asp-action="Index" asp-route-tab="schedule">Xếp ca</a>
+    <a class="@(tab == "attendance" ? "on" : "")" asp-action="Index" asp-route-tab="attendance">Chấm công</a>
+    <a class="@(tab == "leave" ? "on" : "")" asp-action="Index" asp-route-tab="leave">Nghỉ phép</a>
+    <a class="@(tab == "payroll" ? "on" : "")" asp-action="Index" asp-route-tab="payroll">Bảng lương</a>
+</div>
+
+@if (tab == "list")
+{
+    <div class="card"><h2>Thêm nhân viên</h2>
+        <form method="post" asp-action="Create" class="form">
+            <div><label for="fn">Họ tên</label><input class="in" id="fn" name="FullName" required /></div>
+            <div><label for="fp">Điện thoại</label><input class="in" id="fp" name="Phone" inputmode="tel" /></div>
+            <div><label for="fr">Vị trí</label><select class="in" id="fr" name="Role"><option value="1">Phục vụ</option><option value="2">Bếp</option><option value="0">Quản lý</option></select></div>
+            <div><label for="fb">Lương cứng / tháng (đ)</label><input class="in" id="fb" type="number" min="0" step="100000" name="BaseSalary" value="4000000" /></div>
+            <div><label for="fh">Đơn giá giờ (đ)</label><input class="in" id="fh" type="number" min="0" step="1000" name="HourlyRate" value="22000" /></div>
+            <button class="btn p">Thêm</button></form></div>
+    <div class="card scroll" style="margin-top:14px"><table><thead><tr><th>Mã</th><th>Họ tên</th><th>Vị trí</th><th>Điện thoại</th><th>Vào làm</th><th class="right">Lương cứng</th><th class="right">Giờ</th><th></th></tr></thead>
+    @foreach (var e in emps)
+    {
+        <tr><td>@e.Code</td><td><b>@e.FullName</b>@if (!e.Active) { <span class="chip r">Đã nghỉ</span> }</td><td><span class="chip @(e.Role == Role.Bep ? "a" : e.Role == Role.PhucVu ? "g" : "b")">@RoleMap.Name(e.Role)</span></td><td>@e.Phone</td><td>@Fmt.Dmy(e.HireDate)</td>
+            <td class="right num">@Fmt.Vnd(e.BaseSalary)</td><td class="right num">@Fmt.Vnd(e.HourlyRate)</td>
+            <td class="right"><form method="post" asp-action="Toggle" asp-route-id="@e.Id"><button class="btn s">@(e.Active ? "Cho nghỉ việc" : "Cho làm lại")</button></form></td></tr>
+    }</table></div>
+}
+else if (tab == "schedule")
+{
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center" class="noprint">
+        <a class="btn" asp-action="Index" asp-route-tab="schedule" asp-route-week="@week.AddDays(-7).ToString("yyyy-MM-dd")">← Tuần trước</a>
+        <b>Tuần @Fmt.Dmy(week) – @Fmt.Dmy(week.AddDays(6))</b>
+        <a class="btn" asp-action="Index" asp-route-tab="schedule" asp-route-week="@week.AddDays(7).ToString("yyyy-MM-dd")">Tuần sau →</a></div>
+    <div class="card scroll"><table class="sched"><thead><tr><th style="text-align:left">Nhân viên</th>@for (var d = 0; d < 7; d++) { <th>@Fmt.Day(week.AddDays(d))</th> }</tr></thead>
+    @foreach (var e in emps.Where(e => e.Active))
+    {
+        <tr><td style="text-align:left"><b>@e.FullName</b><div class="small muted">@RoleMap.Name(e.Role)</div></td>
+        @for (var d = 0; d < 7; d++)
+        {
+            var day = week.AddDays(d); var a = assign.FirstOrDefault(x => x.EmployeeId == e.Id && x.Date == day);
+            <td><form method="post" asp-action="Assign">
+                <input type="hidden" name="employeeId" value="@e.Id" /><input type="hidden" name="date" value="@day.ToString("yyyy-MM-dd")" /><input type="hidden" name="week" value="@week.ToString("yyyy-MM-dd")" />
+                <select name="shiftId" aria-label="Ca @e.FullName @Fmt.Day(day)" onchange="this.form.submit()"><option value="0">Nghỉ</option>@foreach (var s in shifts) { <option value="@s.Id" selected="@(a?.ShiftId == s.Id)">@s.Name</option> }</select></form></td>
+        }</tr>
+    }</table></div>
+    <p class="small muted">Ca sáng 09:00–15:00 · Ca chiều 12:00–18:00 · Ca tối 17:00–23:00. Chọn ca ở từng ô để lưu ngay.</p>
+}
+else if (tab == "attendance")
+{
+    <div class="card scroll"><h2>Chấm công hôm nay · @Fmt.Dmy(DateTime.Today)</h2>
+        <table><thead><tr><th>Nhân viên</th><th>Ca</th><th>Vào</th><th>Ra</th><th class="right">Giờ công</th><th></th></tr></thead>
+        @foreach (var e in emps.Where(e => e.Active))
+        {
+            var a = today.FirstOrDefault(x => x.EmployeeId == e.Id); var sh = todayShifts.FirstOrDefault(x => x.EmployeeId == e.Id);
+            <tr><td><b>@e.FullName</b><div class="small muted">@RoleMap.Name(e.Role)</div></td><td>@(sh != null ? sh.Shift.Name + " " + sh.Shift.StartTime + "–" + sh.Shift.EndTime : "Không có ca")</td>
+                <td>@Fmt.Hm(a?.CheckIn)</td><td>@Fmt.Hm(a?.CheckOut)</td>
+                <td class="right num">@(a?.CheckIn != null && a.CheckOut != null ? Math.Round((a.CheckOut.Value - a.CheckIn.Value).TotalHours, 1).ToString("0.0") : "—")</td>
+                <td class="right">
+                    @if (a == null) { <form method="post" asp-action="CheckIn"><input type="hidden" name="employeeId" value="@e.Id" /><button class="btn s p">Vào ca</button></form> }
+                    else if (a.CheckOut == null) { <form method="post" asp-action="CheckOut"><input type="hidden" name="employeeId" value="@e.Id" /><button class="btn s">Ra ca</button></form> }
+                    else { <span class="chip g">Đã xong</span> }
+                </td></tr>
+        }</table></div>
+}
+else if (tab == "leave")
+{
+    <div class="card"><h2>Tạo đơn nghỉ phép</h2>
+        <form method="post" asp-action="CreateLeave" class="form">
+            <div><label for="le">Nhân viên</label><select class="in" id="le" name="EmployeeId">@foreach (var e in emps.Where(e => e.Active)) { <option value="@e.Id">@e.FullName</option> }</select></div>
+            <div><label for="lf">Từ ngày</label><input class="in" id="lf" type="date" name="FromDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" required /></div>
+            <div><label for="lt">Đến ngày</label><input class="in" id="lt" type="date" name="ToDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" required /></div>
+            <div><label for="lr">Lý do</label><input class="in" id="lr" name="Reason" /></div>
+            <button class="btn p">Gửi đơn</button></form></div>
+    <div class="card scroll" style="margin-top:14px">
+        @if (!leaves.Any()) { <div class="empty">Chưa có đơn nghỉ phép.</div> }
+        else {
+        <table><thead><tr><th>Nhân viên</th><th>Từ</th><th>Đến</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead>
+        @foreach (var l in leaves)
+        {
+            <tr><td><b>@l.Employee.FullName</b></td><td>@Fmt.Dmy(l.FromDate)</td><td>@Fmt.Dmy(l.ToDate)</td><td>@l.Reason</td><td><span class="chip @Fmt.Chip(l.Status)">@l.Status</span></td>
+                <td class="right nowrap">@if (l.Status == "Chờ duyệt")
+                {
+                    <form method="post" asp-action="LeaveStatus" style="display:inline"><input type="hidden" name="id" value="@l.Id" /><input type="hidden" name="status" value="Đã duyệt" /><button class="btn s p">Duyệt</button></form>
+                    <form method="post" asp-action="LeaveStatus" style="display:inline"><input type="hidden" name="id" value="@l.Id" /><input type="hidden" name="status" value="Từ chối" /><button class="btn s">Từ chối</button></form>
+                }</td></tr>
+        }</table> }
+    </div>
+}
+else
+{
+    <div class="card"><form method="post" asp-action="Payroll" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+        <div><label for="pm">Tháng</label><input class="in" style="width:100px" id="pm" type="number" min="1" max="12" name="month" value="@month" /></div>
+        <div><label for="py">Năm</label><input class="in" style="width:120px" id="py" type="number" min="2020" name="year" value="@year" /></div>
+        <button class="btn p">Tính lương</button></form>
+        <p class="small muted">Lương = lương cứng + giờ công × đơn giá giờ − 10,5% bảo hiểm trên lương cứng. Giờ công lấy từ chấm công.</p></div>
+    <div class="card scroll" style="margin-top:14px">
+        @if (!pay.Any()) { <div class="empty">Chưa tính lương tháng @month/@year. Bấm “Tính lương” để tạo bảng lương.</div> }
+        else {
+        <table><thead><tr><th>Nhân viên</th><th class="right">Giờ công</th><th class="right">Tổng thu nhập</th><th class="right">Khấu trừ</th><th class="right">Thực nhận</th></tr></thead>
+        @foreach (var p in pay) { <tr><td><b>@p.Employee.FullName</b></td><td class="right num">@p.Hours.ToString("0.0")</td><td class="right num">@Fmt.Vnd(p.Gross)</td><td class="right num">@Fmt.Vnd(p.Deduction)</td><td class="right num"><b>@Fmt.Vnd(p.Net)</b></td></tr> }
+        <tr><td><b>Tổng</b></td><td class="right num">@pay.Sum(p => p.Hours).ToString("0.0")</td><td class="right num">@Fmt.Vnd(pay.Sum(p => p.Gross))</td><td class="right num">@Fmt.Vnd(pay.Sum(p => p.Deduction))</td><td class="right num"><b>@Fmt.Vnd(pay.Sum(p => p.Net))</b></td></tr></table> }
+    </div>
+}

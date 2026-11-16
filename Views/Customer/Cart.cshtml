@@ -1,0 +1,16 @@
+@model List<QuanLyNhaHang.Models.MenuItem>
+@{ Layout = "_CustomerLayout"; ViewData["Title"] = "Giỏ hàng"; var cart = (List<QuanLyNhaHang.Controllers.CustomerController.CartItem>)ViewBag.Cart; var combos = (List<QuanLyNhaHang.Models.Combo>)ViewBag.CartCombos; decimal total = 0; }
+<div class="container py-4"><h1>Giỏ hàng</h1>
+@if (!cart.Any()) { <p>Giỏ hàng đang trống. <a href="/khach-hang">Xem thực đơn</a></p> }
+else {
+<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Món / combo</th><th>Đơn giá</th><th>Số lượng</th><th>Tạm tính</th></tr></thead><tbody>
+@foreach (var c in cart) {
+    if (c.MenuItemId > 0) { var m = Model.FirstOrDefault(x => x.Id == c.MenuItemId); if (m != null) { var lineTotal = m.Price * c.Qty; total += lineTotal;
+        <tr><td>@m.Name</td><td>@m.Price.ToString("N0") đ</td><td><form method="post" action="/khach-hang/gio-hang/cap-nhat" class="d-flex gap-2">@Html.AntiForgeryToken()<input type="hidden" name="menuItemId" value="@m.Id"/><input class="form-control" style="max-width:90px" type="number" name="qty" min="0" max="30" value="@c.Qty"/><button class="btn btn-outline-secondary">Cập nhật</button></form></td><td>@lineTotal.ToString("N0") đ</td></tr>
+    } }
+    else { var combo = combos.FirstOrDefault(x => x.Id == -c.MenuItemId); if (combo != null) { var lineTotal = combo.Price * c.Qty; total += lineTotal;
+        <tr><td><strong>@combo.Name</strong><div class="small text-muted">@string.Join(", ", combo.Items.Select(x => x.MenuItem.Name + " × " + x.Qty))</div></td><td>@combo.Price.ToString("N0") đ</td><td><form method="post" action="/khach-hang/gio-hang/cap-nhat" class="d-flex gap-2">@Html.AntiForgeryToken()<input type="hidden" name="menuItemId" value="@c.MenuItemId"/><input class="form-control" style="max-width:90px" type="number" name="qty" min="0" max="30" value="@c.Qty"/><button class="btn btn-outline-secondary">Cập nhật</button></form></td><td>@lineTotal.ToString("N0") đ</td></tr>
+    } }
+}
+</tbody></table></div><h4>Tổng tạm tính: @total.ToString("N0") đ</h4><a class="btn btn-primary" href="/khach-hang/thanh-toan">Tiến hành đặt hàng</a> }
+</div>
