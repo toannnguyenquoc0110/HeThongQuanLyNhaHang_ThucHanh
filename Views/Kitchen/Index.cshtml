@@ -1,0 +1,10 @@
+@model List<OrderLine>
+@{ ViewData["Title"] = "Bếp"; var items = (List<MenuItem>)ViewBag.Items; }
+<div class="head"><div><h1>Màn hình bếp</h1><p>Tự cập nhật mỗi 10 giây. Bắt đầu làm sẽ tự trừ nguyên liệu theo công thức.</p></div>
+    <form method="post" asp-action="Stop" style="display:flex;gap:8px;align-items:end">
+        <div><label for="si">Báo hết / bán lại món</label><select class="in" id="si" name="itemId">@foreach (var m in items) { <option value="@m.Id">@m.Name@(m.Stopped ? " (đang hết)" : "")</option> }</select></div>
+        <button class="btn d">Đổi trạng thái</button></form></div>
+<div id="board">@await Html.PartialAsync("_Board", Model)</div>
+@section Scripts {
+<script>setInterval(function(){ fetch('/Kitchen/Board').then(function(r){return r.text()}).then(function(h){ document.getElementById('board').innerHTML=h; }); }, 10000);</script>
+}

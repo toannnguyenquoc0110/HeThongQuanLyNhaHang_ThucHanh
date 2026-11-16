@@ -1,0 +1,101 @@
+@{
+    ViewData["Title"] = "Thực đơn"; var tab = (string)ViewBag.Tab;
+    var cats = (List<MenuCategory>)ViewBag.Categories; var items = (List<MenuItem>)ViewBag.Items; var combos = (List<Combo>)ViewBag.Combos;
+    var promos = (List<Promotion>)ViewBag.Promos; var coupons = (List<Coupon>)ViewBag.Coupons;
+    var costInfo = (Dictionary<int, QuanLyNhaHang.Services.CostingService.CostResult>)ViewBag.CostInfo;
+    var comboCostInfo = (Dictionary<int, QuanLyNhaHang.Services.CostingService.CostResult>)ViewBag.ComboCostInfo;
+}
+<div class="head"><div><h1>Thực đơn</h1><p>Giá, giá vốn, công thức, combo và khuyến mãi. Áp dụng cho cả 4 chi nhánh.</p></div></div>
+<div class="tabs">
+    <a class="@(tab == "items" ? "on" : "")" asp-action="Index" asp-route-tab="items">Món ăn (@items.Count)</a>
+    <a class="@(tab == "combos" ? "on" : "")" asp-action="Index" asp-route-tab="combos">Combo</a>
+    <a class="@(tab == "promos" ? "on" : "")" asp-action="Index" asp-route-tab="promos">Khuyến mãi theo giờ</a>
+    <a class="@(tab == "coupons" ? "on" : "")" asp-action="Index" asp-route-tab="coupons">Mã giảm giá</a>
+</div>
+
+@if (tab == "items")
+{
+    <div class="card">
+        <h2>Thêm món mới</h2>
+        <form method="post" asp-action="CreateItem" class="form">
+            <div><label for="n">Tên món</label><input class="in" id="n" name="Name" required /></div>
+            <div><label for="c">Nhóm</label><select class="in" id="c" name="CategoryId">@foreach (var c in cats) { <option value="@c.Id">@c.Name</option> }</select></div>
+            <div><label for="p">Giá bán (đ)</label><input class="in" id="p" type="number" min="0" step="1000" name="Price" required /></div>
+            <div><label>Giá vốn</label><input class="in" value="Tự tính từ công thức" disabled /></div>
+            <div><label for="t">Chế biến (phút)</label><input class="in" id="t" type="number" min="1" name="PrepMinutes" value="10" /></div>
+            <div><label for="a">Dị ứng</label><input class="in" id="a" name="Allergens" placeholder="Hải sản, sữa…" /></div>
+            <button class="btn p">Thêm món</button>
+        </form>
+        <form method="post" asp-action="CreateCategory" style="display:flex;gap:8px;margin-top:12px;max-width:420px"><input class="in" name="name" placeholder="Tên nhóm món mới" aria-label="Tên nhóm món mới" /><button class="btn">Thêm nhóm</button></form>
+    </div>
+    <div class="card scroll" style="margin-top:14px">
+        <table><thead><tr><th>Món</th><th>Nhóm</th><th class="right">Giá bán</th><th class="right">Giá vốn</th><th class="right">Lãi gộp</th><th>Công thức</th><th>Trạng thái</th><th></th></tr></thead>
+        @foreach (var m in items)
+        {
+            var info = costInfo.GetValueOrDefault(m.Id);
+            var currentCost = info?.Complete == true ? info.Cost : (decimal?)null;
+            var margin = m.Price == 0 || currentCost == null ? 0 : (m.Price - currentCost.Value) * 100 / m.Price;
+            <tr><td><b>@m.Icon @m.Name</b><div class="small muted">@m.PrepMinutes phút@(string.IsNullOrEmpty(m.Allergens) ? "" : " · Dị ứng: " + m.Allergens)</div></td>
+                <td>@m.Category.Name</td><td class="right num">@Fmt.Vnd(m.Price)</td><td class="right num">@(currentCost.HasValue ? Fmt.Vnd(currentCost.Value) : "Chưa đủ dữ liệu")</td>
+                <td class="right num">@(currentCost.HasValue ? margin.ToString("0") + "%" : "Thiếu dữ liệu")</td>
+                <td>@(m.Recipes.Count > 0 ? m.Recipes.Count + " nguyên liệu" : "Chưa có")</td>
+                <td><span class="chip @(m.Stopped ? "r" : "g")">@(m.Stopped ? "Tạm hết" : "Đang bán")</span></td>
+                <td class="right nowrap"><a class="btn s" asp-action="Edit" asp-route-id="@m.Id">Sửa</a>
+                    <form method="post" asp-action="Toggle" asp-route-id="@m.Id" style="display:inline"><button class="btn s">@(m.Stopped ? "Bán lại" : "Báo hết")</button></form></td></tr>
+        }</table>
+    </div>
+}
+else if (tab == "combos")
+{
+    <div class="card">
+        <h2>Tạo combo</h2>
+        <form method="post" asp-action="CreateCombo">
+            <div class="form" style="margin-bottom:12px"><div><label for="cn">Tên combo</label><input class="in" id="cn" name="name" required /></div><div><label for="cp">Giá combo (đ)</label><input class="in" id="cp" type="number" min="0" step="1000" name="price" required /></div></div>
+            <label>Chọn các món trong combo</label>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px">
+                @foreach (var m in items) { <label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:.92rem;min-height:40px"><input type="checkbox" name="itemIds" value="@m.Id" style="width:20px;height:20px" />@m.Name <span class="muted small">@Fmt.Vnd(m.Price)</span></label> }
+            </div>
+            <button class="btn p" style="margin-top:10px">Tạo combo</button>
+        </form>
+    </div>
+    <div class="card scroll" style="margin-top:14px"><table><thead><tr><th>Combo</th><th>Gồm</th><th class="right">Giá lẻ</th><th class="right">Giá combo</th><th class="right">Giá vốn tự tính</th><th class="right">Lãi gộp dự kiến</th><th></th></tr></thead>
+    @foreach (var c in combos)
+    {
+        var retail = c.Items.Sum(i => i.MenuItem.Price * i.Qty);
+        var cc = comboCostInfo.GetValueOrDefault(c.Id);
+        var gross = cc?.Complete == true ? c.Price - cc.Cost : 0m;
+        <tr><td><b>@c.Name</b><div><span class="chip @(c.Active ? "g" : "r")">@(c.Active ? "Đang bán" : "Ngừng")</span></div></td><td class="small">@string.Join(", ", c.Items.Select(i => i.MenuItem.Name))</td>
+            <td class="right num">@Fmt.Vnd(retail)</td><td class="right num"><b>@Fmt.Vnd(c.Price)</b> <span class="chip g">−@(retail == 0 ? 0 : (int)((retail - c.Price) * 100 / retail))%</span></td>
+            <td class="right num">@(cc?.Complete == true ? Fmt.Vnd(cc.Cost) : "Thiếu công thức")</td><td class="right num">@(cc?.Complete == true ? Fmt.Vnd(gross) : "Chưa tính được")</td>
+            <td class="right"><form method="post" asp-action="ToggleCombo" asp-route-id="@c.Id"><button class="btn s">@(c.Active ? "Ngừng bán" : "Bán lại")</button></form></td></tr>
+    }</table></div>
+}
+else if (tab == "promos")
+{
+    <div class="card"><h2>Thêm khuyến mãi theo khung giờ</h2>
+        <form method="post" asp-action="CreatePromo" class="form">
+            <div><label for="pn">Tên chương trình</label><input class="in" id="pn" name="Name" required /></div>
+            <div><label for="pc">Giảm (%)</label><input class="in" id="pc" type="number" min="1" max="90" name="Percent" required /></div>
+            <div><label for="ps">Từ giờ</label><input class="in" id="ps" type="time" name="StartTime" value="14:00" required /></div>
+            <div><label for="pe">Đến giờ</label><input class="in" id="pe" type="time" name="EndTime" value="17:00" required /></div>
+            <div><label for="pg">Áp dụng cho</label><select class="in" id="pg" name="CategoryId"><option value="0">Tất cả món</option>@foreach (var c in cats) { <option value="@c.Id">@c.Name</option> }</select></div>
+            <button class="btn p">Thêm</button></form>
+        <p class="small muted">Trong khung giờ này, màn hình gọi món tự hiện giá đã giảm và hóa đơn tính theo giá đó.</p></div>
+    <div class="card scroll" style="margin-top:14px"><table><thead><tr><th>Chương trình</th><th>Khung giờ</th><th>Áp dụng</th><th class="right">Giảm</th><th></th></tr></thead>
+    @foreach (var p in promos) { <tr><td><b>@p.Name</b></td><td>@p.StartTime – @p.EndTime</td><td>@(p.Category?.Name ?? "Tất cả món")</td><td class="right">@p.Percent%</td>
+        <td class="right"><form method="post" asp-action="TogglePromo" asp-route-id="@p.Id"><button class="btn s">@(p.Active ? "Tạm tắt" : "Bật lại")</button></form></td></tr> }</table></div>
+}
+else
+{
+    <div class="card"><h2>Thêm mã giảm giá</h2>
+        <form method="post" asp-action="CreateCoupon" class="form">
+            <div><label for="kc">Mã</label><input class="in" id="kc" name="Code" required autocapitalize="characters" /></div>
+            <div><label for="kp">Giảm (%)</label><input class="in" id="kp" type="number" min="0" max="90" name="Percent" value="0" /></div>
+            <div><label for="ka">Hoặc giảm tiền (đ)</label><input class="in" id="ka" type="number" min="0" step="1000" name="Amount" value="0" /></div>
+            <div><label for="km">Đơn tối thiểu (đ)</label><input class="in" id="km" type="number" min="0" step="10000" name="MinTotal" value="0" /></div>
+            <div><label for="ke">Hết hạn</label><input class="in" id="ke" type="date" name="ExpireDate" /></div>
+            <button class="btn p">Thêm mã</button></form></div>
+    <div class="card scroll" style="margin-top:14px"><table><thead><tr><th>Mã</th><th>Mức giảm</th><th>Đơn tối thiểu</th><th>Hết hạn</th><th>Đã dùng</th><th></th></tr></thead>
+    @foreach (var c in coupons) { <tr><td><b>@c.Code</b></td><td>@(c.Percent > 0 ? c.Percent + "%" : Fmt.Vnd(c.Amount))</td><td class="num">@Fmt.Vnd(c.MinTotal)</td><td>@(c.ExpireDate.HasValue ? Fmt.Dmy(c.ExpireDate.Value) : "Không hạn")</td><td>@c.UsedCount lần</td>
+        <td class="right"><form method="post" asp-action="ToggleCoupon" asp-route-id="@c.Id"><button class="btn s">@(c.Active ? "Tắt mã" : "Bật mã")</button></form></td></tr> }</table></div>
+}

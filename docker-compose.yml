@@ -1,0 +1,27 @@
+# PostgreSQL 16 cho Vị Nhà.  Chạy:  docker compose up -d
+# Rồi đổi Database:Provider thành PostgreSql trong appsettings.json (hoặc đặt biến Database__Provider=PostgreSql).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vinha-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vinha
+      POSTGRES_USER: vinha
+      POSTGRES_PASSWORD: vinha_dev_2026
+      TZ: Asia/Ho_Chi_Minh
+    ports: ["5432:5432"]
+    volumes:
+      - vinha_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vinha -d vinha"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  adminer:
+    image: adminer:4
+    restart: unless-stopped
+    ports: ["8081:8080"]
+    depends_on: [db]
+volumes:
+  vinha_data:

@@ -1,0 +1,103 @@
+@model OrderScreenVM
+@{
+    var o = Model.Cart.Order; ViewData["Title"] = "Gọi món";
+    var free = (List<DiningTable>)ViewBag.FreeTables; var others = (List<Order>)ViewBag.OtherOrders;
+}
+<div class="head"><div><h1>Gọi món · @(o.Table?.Name ?? "Mang về")</h1><p>Chạm món để thêm vào đơn. Món báo hết hoặc thiếu nguyên liệu sẽ bị khóa.</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap" class="noprint">
+        <a class="btn" asp-controller="Tables" asp-action="Index">← Sơ đồ bàn</a>
+        <button class="btn" data-open="#mMove">Chuyển / gộp / tách</button>
+        <form method="post" asp-action="Cancel" asp-route-id="@o.Id" onsubmit="return confirm('Hủy cả đơn này?')"><button class="btn d">Hủy đơn</button></form>
+    </div></div>
+
+<div class="pos">
+    <section class="menu">
+        <input class="in" id="q" type="search" placeholder="Tìm món…" aria-label="Tìm món" style="margin-bottom:10px" />
+        <div class="cats" role="tablist">
+            <button type="button" class="cat on" data-cat="all">Tất cả</button>
+            @foreach (var c in Model.Categories)
+            {
+                <button type="button" class="cat" data-cat="@c.Id">@c.Name@(Model.Promo[c.Id] > 0 ? " −" + Model.Promo[c.Id] + "%" : "")</button>
+            }
+            @if (Model.Combos.Any()) { <button type="button" class="cat" data-cat="combo">Combo</button> }
+        </div>
+        <div class="items">
+            @foreach (var m in Model.Items)
+            {
+                var out1 = m.Stopped; var lack = !OrderService.CanMake(m, Model.Stock);
+                var pct = Model.Promo[m.CategoryId]; var price = Math.Round(m.Price * (100 - pct) / 100);
+                <button type="button" class="item" data-cat="@m.CategoryId" data-n="@m.Name.ToLower()" @((out1 || lack) ? "disabled" : "")
+                        data-post="/Orders/Add" data-body="orderId=@o.Id&itemId=@m.Id" data-target="#cart" title="@m.Description">
+                    <span class="ic">@m.Icon</span><span class="nm">@m.Name</span>
+                    @if (!string.IsNullOrEmpty(m.Allergens)) { <span class="small muted">Dị ứng: @m.Allergens</span> }
+                    <span class="pr num">@if (pct > 0) { <span class="was">@Fmt.Vnd(m.Price)</span> }@Fmt.Vnd(price)</span>
+                    @if (out1) { <span class="chip r off">Hết món</span> } else if (lack) { <span class="chip a off">Thiếu NL</span> }
+                </button>
+            }
+            @foreach (var c in Model.Combos)
+            {
+                <button type="button" class="item" data-cat="combo" data-n="@c.Name.ToLower()" data-post="/Orders/AddCombo" data-body="orderId=@o.Id&comboId=@c.Id" data-target="#cart">
+                    <span class="ic">🍱</span><span class="nm">@c.Name</span><span class="pr num">@Fmt.Vnd(c.Price)</span><span class="chip g off">Combo</span>
+                </button>
+            }
+        </div>
+    </section>
+    <aside class="cart" id="cart" aria-live="polite">@await Html.PartialAsync("_Cart", Model.Cart)</aside>
+</div>
+
+<div class="modal" id="mPay"><div class="box">
+    <h2>Thanh toán đơn #@o.Id</h2>
+    <form method="post" asp-action="Pay" asp-route-id="@o.Id">
+        <label for="pm">Hình thức</label>
+        <select class="in" id="pm" name="method"><option>Tiền mặt</option><option>Chuyển khoản</option><option>Thẻ</option><option>Ví MoMo</option></select>
+        <p class="muted small">Kiểm tra lại số tiền ở khung bên phải trước khi xác nhận. Phải gửi hết món xuống bếp mới thanh toán được.</p>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn p" style="flex:1">Xác nhận đã thu tiền</button><button type="button" class="btn" data-close>Đóng</button></div>
+    </form>
+    @if (CurrentRoleIsManager())
+    {
+        <form data-target="#cart" action="/Orders/Discount" method="post" style="display:flex;gap:8px;margin-top:12px;align-items:end">
+            <input type="hidden" name="orderId" value="@o.Id" />
+            <div style="flex:1"><label for="dp">Giảm thêm (%)</label><input class="in" id="dp" type="number" min="0" max="100" name="pct" value="@o.DiscountPct" /></div>
+            <button class="btn">Áp dụng</button>
+        </form>
+    }
+</div></div>
+
+<div class="modal" id="mMove"><div class="box">
+    <h2>Chuyển, gộp hoặc tách bàn</h2>
+    <form method="post" asp-action="Move" asp-route-id="@o.Id" style="margin-bottom:14px">
+        <label for="mt">Chuyển cả đơn sang bàn trống</label>
+        <div style="display:flex;gap:8px"><select class="in" id="mt" name="toTableId">@foreach (var t in free) { <option value="@t.Id">@t.Name (@t.Seats chỗ)</option> }</select><button class="btn">Chuyển</button></div>
+    </form>
+    @if (others.Any())
+    {
+        <form method="post" asp-action="Merge" asp-route-id="@o.Id" style="margin-bottom:14px">
+            <label for="mg">Gộp đơn này vào bàn đang có khách</label>
+            <div style="display:flex;gap:8px"><select class="in" id="mg" name="targetOrderId">@foreach (var x in others) { <option value="@x.Id">@(x.Table?.Name ?? "Mang về") (đơn #@x.Id)</option> }</select><button class="btn">Gộp</button></div>
+        </form>
+    }
+    <form method="post" asp-action="Split" asp-route-id="@o.Id">
+        <label>Tách món ra bàn khác (chọn các món cần tách)</label>
+        @foreach (var l in o.Lines.Where(l => l.Status != St.Cancel))
+        {
+            <label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:.95rem;min-height:40px"><input type="checkbox" name="lineIds" value="@l.Id" style="width:20px;height:20px" /> @l.Name × @l.Qty</label>
+        }
+        <div style="display:flex;gap:8px;margin-top:8px"><select class="in" name="toTableId">@foreach (var t in free) { <option value="@t.Id">@t.Name</option> }</select><button class="btn">Tách</button></div>
+    </form>
+    <button type="button" class="btn w" style="margin-top:14px" data-close>Đóng</button>
+</div></div>
+
+@functions { bool CurrentRoleIsManager() => (Role)ViewBag.Role == Role.QuanLy; }
+
+@section Scripts {
+<script>
+(function(){
+  var cat='all', q='';
+  function apply(){ document.querySelectorAll('.item').forEach(function(i){
+    var ok=(cat==='all'||i.dataset.cat===cat)&&(!q||i.dataset.n.indexOf(q)>-1); i.style.display=ok?'':'none'; }); }
+  document.querySelectorAll('.cat').forEach(function(b){ b.addEventListener('click',function(){
+    document.querySelectorAll('.cat').forEach(function(x){x.classList.remove('on')}); b.classList.add('on'); cat=b.dataset.cat; apply(); }); });
+  document.getElementById('q').addEventListener('input',function(e){ q=e.target.value.trim().toLowerCase(); apply(); });
+})();
+</script>
+}

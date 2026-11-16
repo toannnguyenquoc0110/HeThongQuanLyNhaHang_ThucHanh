@@ -1,0 +1,55 @@
+@model List<Reservation>
+@{ ViewData["Title"] = "Đặt bàn"; var date = (DateTime)ViewBag.Date; }
+<div class="head"><div><h1>Đặt bàn</h1><p>Nhân viên nhập lịch khi khách gọi điện hoặc đến trực tiếp.</p></div>
+    <form method="get" style="display:flex;gap:8px;align-items:end"><div><label for="d">Ngày</label><input class="in" type="date" id="d" name="date" value="@date.ToString("yyyy-MM-dd")" onchange="this.form.submit()" /></div></form></div>
+
+<div class="card">
+    <h2>Thêm lịch đặt bàn</h2>
+    <form method="post" asp-action="Create" class="form" id="rf">
+        <div><label for="rn">Tên khách</label><input class="in" id="rn" name="CustomerName" required /></div>
+        <div><label for="rp">Điện thoại</label><input class="in" id="rp" name="Phone" inputmode="tel" /></div>
+        <div><label for="rd">Ngày</label><input class="in" id="rd" type="date" name="Date" value="@date.ToString("yyyy-MM-dd")" required /></div>
+        <div><label for="rt">Giờ</label><input class="in" id="rt" type="time" name="Time" value="18:30" required /></div>
+        <div><label for="rg">Số khách</label><input class="in" id="rg" type="number" min="1" max="30" name="Pax" value="4" required /></div>
+        <div><label for="rb">Bàn còn trống</label><select class="in" id="rb" name="TableId" required></select></div>
+        <div><label for="rc">Tiền cọc (đ)</label><input class="in" id="rc" type="number" min="0" step="10000" name="Deposit" value="0" /></div>
+        <div><label for="rm">Ghi chú</label><input class="in" id="rm" name="Note" placeholder="Sinh nhật, ghế trẻ em…" /></div>
+        <button class="btn p">Giữ bàn</button>
+    </form>
+</div>
+
+<div class="card scroll" style="margin-top:14px">
+    <h2>Lịch ngày @Fmt.Dmy(date)</h2>
+    @if (!Model.Any()) { <div class="empty">Chưa có lịch đặt bàn nào trong ngày này.</div> }
+    else {
+    <table><thead><tr><th>Giờ</th><th>Khách</th><th>Bàn</th><th>Số khách</th><th>Cọc</th><th>Ghi chú</th><th>Trạng thái</th><th></th></tr></thead>
+    @foreach (var r in Model)
+    {
+        <tr><td><b>@r.Time</b></td><td>@r.CustomerName<div class="small muted">@r.Phone</div></td><td>@r.Table.Name</td><td>@r.Pax</td><td class="num">@(r.Deposit > 0 ? Fmt.Vnd(r.Deposit) : "—")</td><td>@r.Note</td>
+            <td><span class="chip @Fmt.Chip(r.Status)">@r.Status</span></td>
+            <td class="right nowrap">
+                @if (r.Status == St.Confirmed)
+                {
+                    <form method="post" asp-action="Status" style="display:inline"><input type="hidden" name="id" value="@r.Id" /><input type="hidden" name="status" value="@St.NoShow" /><button class="btn s">Không đến</button></form>
+                    @if (r.Date == DateTime.Today) { <form method="post" asp-controller="Tables" asp-action="Open" style="display:inline"><input type="hidden" name="tableId" value="@r.TableId" /><input type="hidden" name="reservationId" value="@r.Id" /><input type="hidden" name="pax" value="@r.Pax" /><input type="hidden" name="customerName" value="@r.CustomerName" /><button class="btn s p">Khách đã đến</button></form> }
+                }
+            </td></tr>
+    }</table> }
+</div>
+
+@section Scripts {
+<script>
+(function(){
+  var f=document.getElementById('rf');
+  function load(){
+    var q=new URLSearchParams({date:f.Date.value,time:f.Time.value,pax:f.Pax.value});
+    fetch('/Reservations/Free?'+q).then(function(r){return r.json()}).then(function(list){
+      var s=document.getElementById('rb'); s.innerHTML='';
+      if(!list.length){ s.innerHTML='<option value="">Không còn bàn phù hợp</option>'; return; }
+      list.forEach(function(t){ var o=document.createElement('option'); o.value=t.id; o.textContent=t.name+' ('+t.seats+' chỗ)'; s.appendChild(o); });
+    });
+  }
+  ['Date','Time','Pax'].forEach(function(n){ f[n].addEventListener('change',load); }); load();
+})();
+</script>
+}

@@ -1,0 +1,73 @@
+@model List<TileVM>
+@{
+    ViewData["Title"] = "Sơ đồ bàn";
+    var zones = (List<Zone>)ViewBag.Zones; var takeaway = (List<Order>)ViewBag.Takeaway; var waiters = (List<Employee>)ViewBag.Waiters;
+    var busy = Model.Count(t => t.State == "Đang dùng");
+}
+<div class="head"><div><h1>Sơ đồ bàn</h1><p>@busy / @Model.Count bàn đang có khách. Chạm vào bàn để mở bàn hoặc tiếp tục gọi món.</p></div>
+    <div style="display:flex;gap:12px;align-items:center" class="noprint">
+        <div class="legend"><span><i style="background:#fff;border:2px solid #BFD9CC"></i>Trống</span><span><i style="background:var(--tur-l);border:2px solid var(--tur)"></i>Đã đặt</span><span><i style="background:var(--brand)"></i>Đang dùng</span></div>
+        <button class="btn" data-open="#mTake">Đơn mang về</button>
+    </div></div>
+
+@foreach (var z in zones)
+{
+    <section class="zone">
+        <h2>@z.Name <span class="chip">@Model.Count(t => t.Table.ZoneId == z.Id) bàn</span></h2>
+        <div class="tiles">
+            @foreach (var t in Model.Where(t => t.Table.ZoneId == z.Id))
+            {
+                if (t.Order != null)
+                {
+                    <a class="tile busy" asp-controller="Orders" asp-action="Screen" asp-route-id="@t.Order.Id">
+                        <span class="nm">@t.Table.Name</span><span class="sub">@t.Order.Pax khách · mở lúc @Fmt.Hm(t.Order.OpenedAt)</span>
+                        <span class="sub">@(t.Order.Employee?.FullName ?? "Chưa gán phục vụ")</span><span class="amt num">@Fmt.Vnd(t.Amount)</span>
+                    </a>
+                }
+                else
+                {
+                    <button class="tile @(t.State == "Đã đặt" ? "resv" : "free")" data-open="#mOpen" data-table="@t.Table.Id" data-name="@t.Table.Name" data-res="@(t.Reservation?.Id)" data-pax="@(t.Reservation?.Pax ?? 2)" data-cust="@t.Reservation?.CustomerName" type="button">
+                        <span class="nm">@t.Table.Name</span><span class="sub">@t.Table.Seats chỗ</span>
+                        @if (t.Reservation != null) { <span class="sub"><b>@t.Reservation.Time</b> · @t.Reservation.CustomerName</span> }
+                        <span class="amt"><span class="chip @Fmt.Chip(t.State)">@t.State</span></span>
+                    </button>
+                }
+            }
+        </div>
+    </section>
+}
+
+@if (takeaway.Any())
+{
+    <section class="zone"><h2>Đơn mang về đang mở</h2>
+        <div class="tiles">@foreach (var o in takeaway) { <a class="tile busy" asp-controller="Orders" asp-action="Screen" asp-route-id="@o.Id"><span class="nm">Đơn #@o.Id</span><span class="sub">@(o.CustomerName ?? "Khách mang về")</span><span class="amt num">@Fmt.Vnd(o.Lines.Where(l => l.Status != St.Cancel).Sum(l => l.Qty * l.Price))</span></a> }</div></section>
+}
+
+<div class="modal" id="mOpen"><div class="box">
+    <h2>Mở <span id="oName"></span></h2>
+    <form method="post" asp-action="Open">
+        <input type="hidden" name="tableId" id="oTable" /><input type="hidden" name="reservationId" id="oRes" />
+        <div class="form" style="grid-template-columns:1fr 1fr">
+            <div><label for="oPax">Số khách</label><input class="in" type="number" min="1" max="30" name="pax" id="oPax" value="2" required /></div>
+            <div><label for="oCust">Tên khách (không bắt buộc)</label><input class="in" name="customerName" id="oCust" /></div>
+            <div style="grid-column:1/-1"><label for="oEmp">Nhân viên phục vụ</label>
+                <select class="in" name="employeeId" id="oEmp"><option value="">— Chưa gán —</option>@foreach (var w in waiters) { <option value="@w.Id">@w.FullName</option> }</select></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px"><button class="btn p" style="flex:1">Mở bàn và gọi món</button><button type="button" class="btn" data-close>Đóng</button></div>
+    </form></div></div>
+
+<div class="modal" id="mTake"><div class="box">
+    <h2>Đơn mang về</h2>
+    <form method="post" asp-action="Takeaway">
+        <div class="form"><div><label for="tName">Tên khách</label><input class="in" name="customerName" id="tName" /></div><div><label for="tPhone">Số điện thoại</label><input class="in" name="phone" id="tPhone" inputmode="tel" /></div></div>
+        <div style="display:flex;gap:8px;margin-top:16px"><button class="btn p" style="flex:1">Tạo đơn</button><button type="button" class="btn" data-close>Đóng</button></div>
+    </form></div></div>
+
+@section Scripts {
+<script>
+document.querySelectorAll('[data-table]').forEach(b => b.addEventListener('click', () => {
+  oName.textContent = b.dataset.name; oTable.value = b.dataset.table; oRes.value = b.dataset.res || '';
+  oPax.value = b.dataset.pax || 2; oCust.value = b.dataset.cust || '';
+}));
+</script>
+}

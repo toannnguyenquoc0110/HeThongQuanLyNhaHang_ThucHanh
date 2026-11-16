@@ -1,0 +1,61 @@
+@model List<OrderLine>
+@functions {
+    string Spot(OrderLine l) => (l.Order.Table?.Name ?? "Mang về");
+    // Giờ bắt đầu thực tế (hoặc giờ gửi nếu chưa bắt đầu) + thời gian chế biến dự kiến = giờ xong dự kiến.
+    DateTime StartOf(OrderLine l) => l.StartedAt ?? l.SentAt ?? DateTime.Now;
+    DateTime FinishOf(OrderLine l) => StartOf(l).AddMinutes(l.PrepMinutes);
+    static string Mins(double m) => Math.Max(1, (int)Math.Round(m, MidpointRounding.AwayFromZero)) + " phút";
+}
+@{
+    var now = DateTime.Now;
+    var alertMin = (int)(ViewBag.WaitAlertMinutes ?? 5);
+    var wait = Model.Where(l => l.Status == St.Wait).OrderByDescending(l => l.Priority).ThenBy(l => l.SentAt ?? now).ToList();
+    var cook = Model.Where(l => l.Status == St.Cook).OrderBy(l => FinishOf(l)).ToList();
+    var done = Model.Where(l => l.Status == St.Done).OrderBy(l => l.DoneAt ?? now).ToList();
+}
+<div class="kb">
+    <div class="col"><h2>Chờ chế biến <span class="chip a">@wait.Count</span></h2>
+        @if (!wait.Any()) { <div class="empty">Không có món chờ.</div> }
+        @foreach (var l in wait)
+        {
+            var waited = (now - (l.SentAt ?? now)).TotalMinutes;
+            var late = waited >= alertMin;
+            <div class="tk w @(l.Priority ? "hot" : "") @(late ? "late-card" : "")" data-late="@(late ? "1" : "0")">
+                <div class="t1"><span>@l.Qty × @l.Name</span><span>@Spot(l)</span></div>
+                <div class="t2">Đơn #@l.OrderId · đã chờ <b class="@(late ? "late" : "")">@Mins(waited)</b>
+                    @if (late) { <b class="late"> · CHỜ QUÁ LÂU</b> }
+                    @if (l.Priority) { <b class="late"> · ƯU TIÊN</b> }</div>
+                @if (!string.IsNullOrEmpty(l.Note)) { <div class="note" style="margin-bottom:8px">Ghi chú: @l.Note</div> }
+                <div class="t2 muted" style="margin-bottom:8px">Đang chờ có chỗ trống hoặc đủ nguyên liệu, sẽ tự vào bếp.</div>
+                <div style="display:flex;gap:6px;justify-content:flex-end">
+                    <button class="btn" data-post="/Kitchen/Priority" data-body="id=@l.Id" data-target="#board" aria-label="Đánh dấu ưu tiên">@(l.Priority ? "Bỏ ưu tiên" : "Ưu tiên")</button></div>
+            </div>
+        }
+    </div>
+    <div class="col"><h2>Đang chế biến <span class="chip b">@cook.Count</span></h2>
+        @if (!cook.Any()) { <div class="empty">Chưa có món nào đang làm.</div> }
+        @foreach (var l in cook)
+        {
+            var remaining = (FinishOf(l) - now).TotalMinutes;
+            var overdue = remaining < 0;
+            <div class="tk c @(l.Priority ? "hot" : "") @(overdue ? "late-card" : "")" data-late="@(overdue ? "1" : "0")">
+                <div class="t1"><span>@l.Qty × @l.Name</span><span>@Spot(l)</span></div>
+                <div class="t2">Bắt đầu lúc @Fmt.Hm(StartOf(l)) · dự kiến xong lúc <b>@Fmt.Hm(FinishOf(l))</b></div>
+                <div class="t2">
+                    @if (overdue) { <b class="late">Đã trễ @Mins(-remaining)</b> }
+                    else { <b>Còn @Mins(remaining)</b> }
+                    <span class="muted"> · thời gian chế biến @l.PrepMinutes phút</span></div>
+                @if (!string.IsNullOrEmpty(l.Note)) { <div class="note" style="margin-bottom:8px">Ghi chú: @l.Note</div> }
+                <button class="btn p w" data-post="/Kitchen/Done" data-body="id=@l.Id" data-target="#board">Xong món</button>
+            </div>
+        }
+    </div>
+    <div class="col"><h2>Chờ mang ra <span class="chip g">@done.Count</span></h2>
+        @if (!done.Any()) { <div class="empty">Chưa có món nào xong.</div> }
+        @foreach (var l in done)
+        {
+            <div class="tk d"><div class="t1"><span>@l.Qty × @l.Name</span><span>@Spot(l)</span></div>
+                <div class="t2">Xong lúc @Fmt.Hm(l.DoneAt) · phục vụ sẽ xác nhận khi mang ra bàn</div></div>
+        }
+    </div>
+</div>

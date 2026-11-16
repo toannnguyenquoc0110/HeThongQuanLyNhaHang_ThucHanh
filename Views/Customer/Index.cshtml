@@ -1,0 +1,150 @@
+@model List<QuanLyNhaHang.Models.MenuItem>
+@{
+    Layout = "_CustomerLayout";
+    ViewData["Title"] = "Đặt món online";
+    var combos = (List<QuanLyNhaHang.Models.Combo>)ViewBag.Combos;
+    var promos = (List<QuanLyNhaHang.Models.Promotion>)ViewBag.Promotions;
+}
+
+<section class="customer-menu-shell">
+    <div class="customer-menu-hero">
+        <div class="customer-eyebrow"><span></span> VỊ NHÀ · NGON NHƯ CƠM NHÀ</div>
+        <h1>Thực đơn <em>Vị Nhà</em></h1>
+        <p>Món ngon chuẩn vị nhà, đặt online tiện lợi — giao tận nơi hoặc đến lấy tại chi nhánh.</p>
+        <div class="customer-hero-actions">
+            <a class="customer-primary-link" href="#menu-items">Khám phá thực đơn <span>↓</span></a>
+            <span class="customer-hero-note">Tươi ngon · Làm mới mỗi ngày</span>
+        </div>
+        <div class="customer-hero-stamp" aria-hidden="true"><span>V</span><small>VỊ NHÀ</small></div>
+    </div>
+
+    @if (promos.Any()) {
+        <div class="customer-promo"><span class="customer-promo-icon">✦</span><div><strong>Ưu đãi tại nhà hàng</strong><p>@string.Join(" · ", promos.Select(p => $"{p.Name} — giảm {p.Percent}% ({p.StartTime}-{p.EndTime})"))</p></div></div>
+    }
+
+    <div class="customer-section-title" id="menu-items"><div><span class="customer-section-kicker">CHỌN MÓN BẠN YÊU THÍCH</span><h2>Món ngon nhà làm</h2><p>Thêm món vào giỏ và tiếp tục chọn món mà không bị chuyển trang.</p></div><span class="customer-menu-count">@Model.Count món đang phục vụ</span></div>
+
+    <div class="customer-food-grid">
+    @foreach (var m in Model) {
+        <article class="customer-food-card" data-item-card>
+            <div class="customer-food-image">
+                @if (!string.IsNullOrWhiteSpace(m.ImageUrl)) { <img src="@m.ImageUrl" alt="@m.Name" loading="lazy" /> }
+                else { <span class="customer-food-emoji">@(string.IsNullOrWhiteSpace(m.Icon) ? "🍲" : m.Icon)</span> }
+                <span class="customer-food-category">@(m.Category?.Name ?? "Món nhà làm")</span>
+            </div>
+            <div class="customer-food-body">
+                <h3>@m.Name</h3>
+                <p>@(string.IsNullOrWhiteSpace(m.Description) ? "Được chuẩn bị tươi ngon tại nhà hàng Vị Nhà." : m.Description)</p>
+                <div class="customer-food-bottom"><strong>@m.Price.ToString("N0") <small>đ</small></strong><span class="customer-fresh-tag"><i></i> Đang bán</span></div>
+                <form method="post" action="/khach-hang/gio-hang/them" class="customer-add-form js-add-to-cart">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="menuItemId" value="@m.Id" />
+                    <label class="visually-hidden" for="qty-@m.Id">Số lượng @m.Name</label>
+                    <input id="qty-@m.Id" type="number" name="qty" value="1" min="1" max="30" aria-label="Số lượng @m.Name" />
+                    <button type="submit" class="customer-add-btn"><span class="add-plus">＋</span> Thêm vào giỏ</button>
+                </form>
+            </div>
+        </article>
+    }
+    </div>
+
+    @if (combos.Any()) {
+        <div class="customer-section-title customer-combo-title"><div><span class="customer-section-kicker">LỰA CHỌN TIẾT KIỆM</span><h2>Combo dành cho bạn</h2><p>Kết hợp món yêu thích với mức giá hấp dẫn.</p></div></div>
+        <div class="customer-combo-grid">
+        @foreach (var c in combos) {
+            <article class="customer-combo-card">
+                <div class="customer-combo-icon">♨</div><div class="customer-combo-content"><div class="customer-combo-heading"><h3>@c.Name</h3><strong>@c.Price.ToString("N0") <small>đ</small></strong></div>
+                <p>@string.Join(" · ", c.Items.Select(i => i.MenuItem.Name + (i.Qty > 1 ? " × " + i.Qty : "")))</p>
+                <form method="post" action="/khach-hang/gio-hang/them-combo" class="customer-add-form js-add-to-cart">
+                    @Html.AntiForgeryToken()<input type="hidden" name="comboId" value="@c.Id" />
+                    <input type="number" name="qty" value="1" min="1" max="30" aria-label="Số lượng @c.Name" />
+                    <button type="submit" class="customer-add-btn"><span class="add-plus">＋</span> Thêm combo</button>
+                </form></div>
+            </article>
+        }
+        </div>
+    }
+</section>
+
+<div class="customer-toast" id="customerToast" role="status" aria-live="polite"><span>✓</span><div><strong>Đã thêm vào giỏ</strong><small>Bạn có thể tiếp tục chọn món.</small></div><a href="/khach-hang/gio-hang">Xem giỏ</a></div>
+
+@section Scripts {
+<script>
+(() => {
+    const cartLink = document.querySelector('.customer-nav-cart');
+    const toast = document.getElementById('customerToast');
+    let toastTimer;
+
+    function updateCartCount(count) {
+        if (!cartLink) return;
+        let badge = cartLink.querySelector('.customer-cart-count');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'customer-cart-count';
+            cartLink.appendChild(badge);
+        }
+        badge.textContent = count;
+        badge.classList.remove('cart-pop');
+        void badge.offsetWidth;
+        badge.classList.add('cart-pop');
+    }
+
+    function flyToCart(form) {
+        if (!cartLink) return;
+        const source = form.closest('[data-item-card]')?.querySelector('.customer-food-image') || form.querySelector('button');
+        const from = source.getBoundingClientRect();
+        const to = cartLink.getBoundingClientRect();
+        const flyer = document.createElement('div');
+        flyer.className = 'customer-flying-item';
+        flyer.textContent = form.querySelector('input[name="comboId"]') ? '♨' : '🍲';
+        flyer.style.left = (from.left + from.width / 2 - 22) + 'px';
+        flyer.style.top = (from.top + from.height / 2 - 22) + 'px';
+        document.body.appendChild(flyer);
+        requestAnimationFrame(() => {
+            flyer.style.left = (to.left + to.width / 2 - 10) + 'px';
+            flyer.style.top = (to.top + to.height / 2 - 10) + 'px';
+            flyer.style.transform = 'scale(.25) rotate(18deg)';
+            flyer.style.opacity = '0.25';
+        });
+        flyer.addEventListener('transitionend', () => flyer.remove(), { once: true });
+        setTimeout(() => flyer.remove(), 900);
+    }
+
+    document.querySelectorAll('.js-add-to-cart').forEach(form => {
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+            const button = form.querySelector('button[type="submit"]');
+            if (button.disabled) return;
+            const oldText = button.innerHTML;
+            button.disabled = true;
+            button.classList.add('is-adding');
+            button.innerHTML = '<span class="add-spinner"></span> Đang thêm...';
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (!response.ok) throw new Error('Không thể thêm món vào giỏ. Vui lòng thử lại.');
+                const result = await response.json();
+                if (!result.success) throw new Error(result.message || 'Không thể thêm món.');
+                flyToCart(form);
+                updateCartCount(result.count);
+                toast.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+                button.innerHTML = '✓ Đã thêm';
+                button.classList.add('is-added');
+                setTimeout(() => { button.innerHTML = oldText; button.classList.remove('is-added'); }, 1200);
+            } catch (error) {
+                alert(error.message || 'Có lỗi xảy ra khi thêm món.');
+                button.innerHTML = oldText;
+            } finally {
+                button.disabled = false;
+                button.classList.remove('is-adding');
+            }
+        });
+    });
+})();
+</script>
+}

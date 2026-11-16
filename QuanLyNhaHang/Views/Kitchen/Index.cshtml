@@ -1,0 +1,56 @@
+@model List<OrderLine>
+@{
+    ViewData["Title"] = "Bếp";
+    var ings = (List<Ingredient>)ViewBag.Ingredients;
+    var stock = (Dictionary<int, decimal>)ViewBag.Stock;
+    var alertMin = (int)(ViewBag.WaitAlertMinutes ?? 5);
+    var remindMin = (int)(ViewBag.RemindMinutes ?? 3);
+}
+<div class="head"><div><h1>Màn hình bếp</h1><p>Kho tự trừ nguyên liệu ngay khi khách gọi món (phục vụ bấm Gửi bếp); món tự vào bếp, bếp chỉ cần bấm Xong món. Thời gian cập nhật mỗi 5 giây.</p></div>
+    <form method="post" asp-action="OutOfStock" style="display:flex;gap:8px;align-items:end"
+          onsubmit="return confirm('Báo hết nguyên liệu này? Kho sẽ tự về 0 và các món dùng nguyên liệu này tạm ngừng cho đến khi nhập hàng.');">
+        <div><label for="si">Báo hết nguyên liệu</label><select class="in" id="si" name="ingredientId">@foreach (var i in ings) { <option value="@i.Id">@i.Name (kho còn @Fmt.Qty(stock.GetValueOrDefault(i.Id), i.Unit))</option> }</select></div>
+        <button class="btn d">Báo hết</button></form></div>
+<div id="board" data-alert-min="@alertMin" data-remind-min="@remindMin">@await Html.PartialAsync("_Board", Model)</div>
+@section Scripts {
+<script>
+(function () {
+  var board = document.getElementById('board');
+  var lastCount = 0, lastRemind = 0;
+
+  function beep() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      var ctx = new Ctx(), o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.2, ctx.currentTime);
+      o.start(); o.stop(ctx.currentTime + 0.4);
+    } catch (e) { }
+  }
+
+  // Nhắc bếp khi có món chờ quá lâu: nhắc ngay khi số món tăng, và nhắc lại mỗi remindMin phút cho đến khi món vào bếp.
+  function checkLate() {
+    var late = board.querySelectorAll('[data-late="1"]').length;
+    var waitingLate = board.querySelectorAll('.tk.w[data-late="1"]').length;
+    var now = Date.now();
+    var remindMs = (+board.dataset.remindMin || 3) * 60000;
+    if (waitingLate > 0 && (waitingLate > lastCount || now - lastRemind >= remindMs)) {
+      beep();
+      if (window.toast) window.toast('Bếp: ' + waitingLate + ' món chờ quá ' + board.dataset.alertMin + ' phút, cần vào bếp ngay.', true);
+      lastRemind = now;
+    }
+    lastCount = waitingLate;
+  }
+
+  function refresh() {
+    fetch('/Kitchen/Board').then(function (r) { return r.text(); }).then(function (h) {
+      board.innerHTML = h; checkLate();
+    }).catch(function () { });
+  }
+
+  setInterval(refresh, 5000);
+  checkLate();
+})();
+</script>
+}

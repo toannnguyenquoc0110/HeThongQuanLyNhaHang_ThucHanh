@@ -1,0 +1,115 @@
+@{
+    ViewData["Title"] = "Kho & mua hàng"; var tab = (string)ViewBag.Tab;
+    var stocks = (List<BranchStock>)ViewBag.Stocks; var ings = (List<Ingredient>)ViewBag.Ingredients; var sups = (List<Supplier>)ViewBag.Suppliers;
+    var pos = (List<PurchaseOrder>)ViewBag.Orders; var moves = (List<StockMovement>)ViewBag.Moves; var branch = (Branch)ViewBag.Branch;
+    var soon = DateTime.Today.AddDays(7);
+    var autoConsumption = (List<(string Name, string Unit, decimal Qty)>)ViewBag.AutoConsumption;
+    var recordedWaste = (List<(string Name, string Unit, decimal Qty)>)ViewBag.RecordedWaste;
+    var periodFrom = (DateTime)ViewBag.InventoryPeriodFrom;
+    string State(BranchStock s) => s.Quantity <= 0 ? "Hết" : s.Quantity <= s.Ingredient.MinLevel ? "Sắp hết" : "Đủ";
+}
+<div class="head"><div><h1>Kho & mua hàng</h1><p>Tồn kho của @branch.Name. Mỗi chi nhánh có kho riêng.</p></div></div>
+<div class="tabs">
+    <a class="@(tab == "stock" ? "on" : "")" asp-action="Index" asp-route-tab="stock">Tồn kho</a>
+    <a class="@(tab == "purchase" ? "on" : "")" asp-action="Index" asp-route-tab="purchase">Đơn nhập hàng</a>
+    <a class="@(tab == "suppliers" ? "on" : "")" asp-action="Index" asp-route-tab="suppliers">Nhà cung cấp</a>
+    <a class="@(tab == "history" ? "on" : "")" asp-action="Index" asp-route-tab="history">Lịch sử xuất nhập</a>
+</div>
+
+@if (tab == "stock")
+{
+    <div class="grid g3" style="margin-bottom:14px">
+        <div class="stat"><b>@stocks.Count(s => State(s) == "Sắp hết")</b><span>Nguyên liệu sắp hết</span></div>
+        <div class="stat"><b>@stocks.Count(s => State(s) == "Hết")</b><span>Đã hết</span></div>
+        <div class="stat"><b>@stocks.Count(s => s.ExpiryDate != null && s.ExpiryDate <= soon && s.Quantity > 0)</b><span>Lô sắp hết hạn (7 ngày)</span></div>
+    </div>
+    <div class="card scroll"><table><thead><tr><th>Nguyên liệu</th><th class="right">Tồn</th><th class="right">Mức tối thiểu</th><th>Hạn dùng</th><th>Tình trạng</th><th>Kiểm kê / hao hụt</th></tr></thead>
+    @foreach (var s in stocks)
+    {
+        var st = State(s);
+        <tr><td><b>@s.Ingredient.Name</b></td><td class="right num">@Fmt.Num(s.Quantity) @s.Ingredient.Unit</td><td class="right num muted">@Fmt.Num(s.Ingredient.MinLevel)</td>
+            <td>@if (s.ExpiryDate.HasValue) { <span class="chip @(s.ExpiryDate <= soon ? "a" : "n")">@Fmt.Dmy(s.ExpiryDate.Value)</span> } else { <span class="muted">—</span> }</td>
+            <td><span class="chip @Fmt.Chip(st)">@st</span></td>
+            <td><form method="post" asp-action="Adjust" style="display:flex;gap:6px;flex-wrap:wrap">
+                <input type="hidden" name="ingredientId" value="@s.IngredientId" />
+                <input class="in" style="width:90px;min-height:38px" type="number" step="0.1" min="0" name="qty" aria-label="Số lượng" required />
+                <select class="in" style="width:110px;min-height:38px" name="type" aria-label="Loại"><option>Kiểm kê</option><option>Hao hụt</option></select>
+                <input class="in" style="width:130px;min-height:38px" name="note" placeholder="Ghi chú" aria-label="Ghi chú" />
+                <button class="btn s">Ghi</button></form></td></tr>
+    }</table></div>
+    <div class="grid g2" style="margin-top:14px">
+        <div class="card scroll"><h2>Tiêu thụ tự động 30 ngày</h2><p class="small muted">Tổng hợp từ các giao dịch “Xuất bán” được sinh tự động theo công thức khi xác nhận đơn hoặc bắt đầu chế biến. Từ @Fmt.Dmy(periodFrom) đến hôm nay.</p>
+            @if (!autoConsumption.Any()) { <div class="empty">Chưa có giao dịch xuất bán tự động trong kỳ.</div> }
+            else { <table><thead><tr><th>Nguyên liệu</th><th class="right">Đã tiêu thụ</th></tr></thead>@foreach (var x in autoConsumption) { <tr><td>@x.Name</td><td class="right num">@Fmt.Num(x.Qty) @x.Unit</td></tr> }</table> }
+        </div>
+        <div class="card scroll"><h2>Hao hụt đã ghi nhận 30 ngày</h2><p class="small muted">Hao hụt vật lý không thể tự phát hiện nếu không có dữ liệu kiểm kê/cảm biến. Các số liệu dưới đây là những khoản hao hụt đã được nhân viên ghi nhận.</p>
+            @if (!recordedWaste.Any()) { <div class="empty">Chưa ghi nhận hao hụt trong kỳ.</div> }
+            else { <table><thead><tr><th>Nguyên liệu</th><th class="right">Hao hụt</th></tr></thead>@foreach (var x in recordedWaste) { <tr><td>@x.Name</td><td class="right num late">@Fmt.Num(x.Qty) @x.Unit</td></tr> }</table> }
+        </div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>Thêm nguyên liệu mới</h2>
+        <form method="post" asp-action="CreateIngredient" class="form">
+            <div><label for="in">Tên</label><input class="in" id="in" name="name" required /></div>
+            <div><label for="iu">Đơn vị</label><input class="in" id="iu" name="unit" placeholder="kg, lít, lon…" required /></div>
+            <div><label for="im">Mức tối thiểu</label><input class="in" id="im" type="number" step="0.1" min="0" name="minLevel" value="1" /></div>
+            <div><label for="ic">Giá vốn / đơn vị (đ)</label><input class="in" id="ic" type="number" min="0" name="cost" value="0" /></div>
+            <button class="btn p">Thêm</button></form></div>
+}
+else if (tab == "purchase")
+{
+    <div class="card"><h2>Lập đơn nhập hàng</h2>
+        <form method="post" asp-action="CreatePurchase">
+            <div class="form" style="margin-bottom:12px">
+                <div><label for="ps">Nhà cung cấp</label><select class="in" id="ps" name="supplierId">@foreach (var s in sups) { <option value="@s.Id">@s.Name</option> }</select></div>
+                <div><label for="pn">Ghi chú</label><input class="in" id="pn" name="note" /></div></div>
+            <div class="scroll"><table id="pl"><thead><tr><th>Nguyên liệu</th><th>Số lượng</th><th>Đơn giá (đ)</th><th>Hạn dùng</th></tr></thead><tbody></tbody></table></div>
+            <div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="btn" id="addRow">+ Thêm dòng</button><button class="btn p">Tạo đơn nhập</button></div>
+        </form>
+        <template id="rowT"><tr>
+            <td><select class="in" name="ingredientId">@foreach (var i in ings) { <option value="@i.Id" data-cost="@((long)i.Cost)">@i.Name (@i.Unit)</option> }</select></td>
+            <td><input class="in" type="number" step="0.1" min="0" name="qty" style="width:100px" /></td>
+            <td><input class="in" type="number" min="0" name="unitCost" style="width:130px" /></td>
+            <td><input class="in" type="date" name="expiry" /></td></tr></template></div>
+    <div class="card scroll" style="margin-top:14px"><h2>Đơn nhập gần đây</h2>
+        @if (!pos.Any()) { <div class="empty">Chưa có đơn nhập hàng.</div> }
+        else {
+        <table><thead><tr><th>Mã</th><th>Ngày</th><th>Nhà cung cấp</th><th>Hàng</th><th class="right">Giá trị</th><th>Trạng thái</th><th></th></tr></thead>
+        @foreach (var p in pos)
+        {
+            <tr><td><b>@p.Code</b></td><td>@Fmt.Dmy(p.Date)</td><td>@p.Supplier.Name</td><td class="small">@string.Join(", ", p.Lines.Select(l => l.Ingredient.Name + " " + Fmt.Num(l.Qty) + l.Ingredient.Unit))</td>
+                <td class="right num">@Fmt.Vnd(p.Lines.Sum(l => l.Qty * l.UnitCost))</td><td><span class="chip @Fmt.Chip(p.Status)">@p.Status</span></td>
+                <td class="right">@if (p.Status != "Đã nhận") { <form method="post" asp-action="Receive" asp-route-id="@p.Id"><button class="btn s p">Nhận hàng</button></form> }</td></tr>
+        }</table> }
+    </div>
+}
+else if (tab == "suppliers")
+{
+    <div class="card"><h2>Thêm nhà cung cấp</h2>
+        <form method="post" asp-action="CreateSupplier" class="form">
+            <div><label for="sn">Tên</label><input class="in" id="sn" name="Name" required /></div><div><label for="sp">Điện thoại</label><input class="in" id="sp" name="Phone" /></div>
+            <div><label for="sa">Địa chỉ</label><input class="in" id="sa" name="Address" /></div><div><label for="so">Ghi chú</label><input class="in" id="so" name="Note" /></div>
+            <button class="btn p">Thêm</button></form></div>
+    <div class="card scroll" style="margin-top:14px"><table><thead><tr><th>Nhà cung cấp</th><th>Điện thoại</th><th>Địa chỉ</th><th>Ghi chú</th></tr></thead>
+    @foreach (var s in sups) { <tr><td><b>@s.Name</b></td><td>@s.Phone</td><td>@s.Address</td><td>@s.Note</td></tr> }</table></div>
+}
+else
+{
+    <div class="card scroll">
+        @if (!moves.Any()) { <div class="empty">Chưa có biến động kho nào.</div> }
+        else {
+        <table><thead><tr><th>Thời gian</th><th>Nguyên liệu</th><th class="right">Số lượng</th><th>Loại</th><th>Tham chiếu</th><th>Ghi chú</th></tr></thead>
+        @foreach (var m in moves) { <tr><td>@Fmt.Dmy(m.Date) @Fmt.Hm(m.Date)</td><td>@m.Ingredient.Name</td><td class="right num"><span class="@(m.Qty < 0 ? "late" : "")">@(m.Qty > 0 ? "+" : "")@Fmt.Num(m.Qty) @m.Ingredient.Unit</span></td><td><span class="chip">@m.Type</span></td><td>@m.Ref</td><td>@m.Note</td></tr> }</table> }
+    </div>
+}
+
+@section Scripts {
+<script>
+(function(){
+  var add=document.getElementById('addRow'); if(!add) return;
+  var body=document.querySelector('#pl tbody'), t=document.getElementById('rowT');
+  function row(){ var n=t.content.cloneNode(true), sel=n.querySelector('select'), cost=n.querySelector('[name=unitCost]');
+    function sync(){ cost.value=sel.options[sel.selectedIndex].dataset.cost; } sel.addEventListener('change',sync); sync(); body.appendChild(n); }
+  add.addEventListener('click',row); row();
+})();
+</script>
+}

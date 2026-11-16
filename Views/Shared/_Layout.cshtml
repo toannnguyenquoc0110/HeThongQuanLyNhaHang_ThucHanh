@@ -1,0 +1,71 @@
+@{
+    var role = (Role)ViewBag.Role;
+    var branch = (Branch)ViewBag.Branch;
+    var branches = (List<Branch>)ViewBag.Branches;
+    var ctrl = (string)ViewBag.Ctrl;
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@(ViewData["Title"] ?? "Vị Nhà") · Quản lý nhà hàng</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <meta name="description" content="Quản lý bàn, gọi món, bếp, kho và báo cáo cho nhà hàng Vị Nhà." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23BE3F2B'/%3E%3Ctext x='16' y='23' font-size='20' font-family='sans-serif' font-weight='700' fill='white' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E" />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;600;700&display=swap" rel="stylesheet" />
+    <script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+<a class="skip" href="#noidung">Bỏ qua điều hướng</a>
+<div class="app">
+    <div class="hdr">
+        <div class="bar1">
+            <a class="brand" href="/" aria-label="Vị Nhà, về trang chủ"><i aria-hidden="true">V</i>Vị Nhà<small>Quản lý nhà hàng</small></a>
+            <select id="branchSel" class="sel" aria-label="Chi nhánh">
+                @foreach (var b in branches)
+                {
+                    <option value="@b.Id" selected="@(b.Id == branch?.Id)">@b.Name</option>
+                }
+            </select>
+            <span class="grow"></span>
+            <button type="button" class="iconbtn" id="palBtn" aria-label="Mở bảng lệnh" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>Tìm nhanh <kbd>Ctrl K</kbd></button>
+            <button type="button" class="iconbtn sq" id="themeBtn" aria-label="Đổi giao diện sáng tối" title="Đổi giao diện sáng tối"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg></button>
+            <span class="clock" id="clock" aria-label="Giờ hiện tại"></span>
+            <div class="seg" aria-label="Tài khoản đang đăng nhập">
+                <span class="on">@User.Identity?.Name · @RoleMap.Name(role)</span>
+                <form method="post" action="/nhan-vien/dang-xuat" style="display:inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="iconbtn">Đăng xuất</button>
+                </form>
+            </div>
+        </div>
+        <nav class="bar2" aria-label="Điều hướng chính">
+            @foreach (var n in RoleMap.Nav(role))
+            {
+                <a asp-controller="@n.Ctrl" asp-action="Index" class="@(ctrl == n.Ctrl ? "on" : "")" aria-current="@(ctrl == n.Ctrl ? "page" : null)">@n.Label</a>
+            }
+            <span class="foot">Dữ liệu lưu trong vinha.db</span>
+        </nav>
+    </div>
+    <div class="main">
+        <main class="page" id="noidung">@RenderBody()</main>
+    </div>
+</div>
+@if (TempData["ok"] != null) { <div class="toast" data-auto role="status">@TempData["ok"]</div> }
+@if (TempData["err"] != null) { <div class="toast err" data-auto role="alert">@TempData["err"]</div> }
+<div class="pal" id="pal" role="dialog" aria-modal="true" aria-label="Tìm nhanh">
+    <div class="pal-box">
+        <input id="palQ" type="text" placeholder="Gõ tên trang hoặc thao tác…" autocomplete="off" aria-label="Tìm trang" />
+        <div class="pal-list" id="palList">
+            @foreach (var n in RoleMap.Nav(role)) { <a href="@Url.Action("Index", n.Ctrl)" data-t="@n.Label.ToLower()">@n.Label<small>Mở trang</small></a> }
+            @foreach (var b in branches) { <a href="/Session/Branch/@b.Id?back=@Uri.EscapeDataString(Context.Request.Path + Context.Request.QueryString)" data-t="chi nhánh @b.Name.ToLower()">@b.Name<small>Chi nhánh</small></a> }
+        </div>
+        <div class="pal-foot">↑ ↓ để chọn · Enter để mở · Esc để đóng</div>
+    </div>
+</div>
+<script src="~/js/site.js" asp-append-version="true"></script>
+@RenderSection("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,57 @@
+@{
+    ViewData["Title"] = "Tài chính"; var tab = (string)ViewBag.Tab; var exp = (List<Expense>)ViewBag.Expenses;
+    decimal rev = ViewBag.Revenue, expTotal = ViewBag.ExpenseTotal, cashExp = ViewBag.CashExpected; DateTime since = ViewBag.Since;
+    var methods = (List<(string, decimal)>)ViewBag.Methods; var byCat = (List<(string, decimal)>)ViewBag.ByCategory;
+    var closes = (List<CashClose>)ViewBag.Closes; var logs = (List<AuditLog>)ViewBag.Logs; var branch = (Branch)ViewBag.Branch;
+}
+<div class="head"><div><h1>Tài chính</h1><p>@branch.Name · tháng @DateTime.Today.Month/@DateTime.Today.Year</p></div></div>
+<div class="grid g3" style="margin-bottom:14px">
+    <div class="stat hero"><b>@Fmt.Vnd(rev)</b><span>Tiền đã thu trong tháng</span></div>
+    <div class="stat"><b>@Fmt.Vnd(expTotal)</b><span>Chi phí trong tháng</span></div>
+    <div class="stat"><b class="@(rev - expTotal < 0 ? "late" : "")">@Fmt.Vnd(rev - expTotal)</b><span>Thu − chi (chưa trừ giá vốn)</span></div>
+</div>
+<div class="tabs">
+    <a class="@(tab == "expenses" ? "on" : "")" asp-action="Index" asp-route-tab="expenses">Chi phí</a>
+    <a class="@(tab == "cash" ? "on" : "")" asp-action="Index" asp-route-tab="cash">Đóng ca / sổ quỹ</a>
+    <a class="@(tab == "log" ? "on" : "")" asp-action="Index" asp-route-tab="log">Nhật ký thao tác</a>
+</div>
+@if (tab == "expenses")
+{
+    <div class="card"><h2>Ghi chi phí</h2>
+        <form method="post" asp-action="CreateExpense" class="form">
+            <div><label for="ec">Loại</label><select class="in" id="ec" name="Category"><option>Điện nước</option><option>Mặt bằng</option><option>Nguyên liệu</option><option>Marketing</option><option>Sửa chữa</option><option>Vệ sinh</option><option>Khác</option></select></div>
+            <div><label for="ea">Số tiền (đ)</label><input class="in" id="ea" type="number" min="1000" step="1000" name="Amount" required /></div>
+            <div><label for="ed">Ngày</label><input class="in" id="ed" type="date" name="Date" value="@DateTime.Today.ToString("yyyy-MM-dd")" /></div>
+            <div><label for="en">Ghi chú</label><input class="in" id="en" name="Note" /></div>
+            <button class="btn p">Ghi chi phí</button></form></div>
+    <div class="grid g2" style="margin-top:14px;align-items:start">
+        <div class="card scroll"><h2>Chi phí trong tháng</h2>
+            @if (!exp.Any()) { <div class="empty">Chưa có chi phí.</div> }
+            <table>@foreach (var e in exp) { <tr><td>@Fmt.Dmy(e.Date)</td><td><b>@e.Category</b><div class="small muted">@e.Note</div></td><td class="right num">@Fmt.Vnd(e.Amount)</td></tr> }</table></div>
+        <div class="card"><h2>Theo loại</h2>
+            @foreach (var c in byCat) { <div class="sum"><span>@c.Item1</span><b class="num">@Fmt.Vnd(c.Item2)</b></div> }
+            <h2 style="margin-top:16px">Thu theo hình thức thanh toán</h2>
+            @foreach (var m in methods) { <div class="sum"><span>@m.Item1</span><b class="num">@Fmt.Vnd(m.Item2)</b></div> }</div>
+    </div>
+}
+else if (tab == "cash")
+{
+    <div class="grid g2" style="align-items:start">
+        <div class="card"><h2>Đóng ca</h2>
+            <p>Tiền mặt hệ thống ghi nhận từ @Fmt.Hm(since) (@Fmt.Dmy(since)): <b class="num">@Fmt.Vnd(cashExp)</b></p>
+            <form method="post" asp-action="CloseCash" class="form" style="grid-template-columns:1fr">
+                <div><label for="cc">Tiền mặt đếm được (đ)</label><input class="in" id="cc" type="number" min="0" step="1000" name="counted" required /></div>
+                <div><label for="cn">Ghi chú</label><input class="in" id="cn" name="note" placeholder="Lý do chênh lệch (nếu có)" /></div>
+                <button class="btn p">Đóng ca</button></form></div>
+        <div class="card scroll"><h2>Các lần đóng ca</h2>
+            @if (!closes.Any()) { <div class="empty">Chưa có lần đóng ca nào.</div> }
+            <table>@foreach (var c in closes) { var diff = c.Counted - c.Expected; <tr><td>@Fmt.Dmy(c.At) @Fmt.Hm(c.At)</td><td class="right num">@Fmt.Vnd(c.Counted)</td><td class="right"><span class="chip @(diff == 0 ? "g" : "r")">@(diff == 0 ? "Khớp" : (diff > 0 ? "+" : "") + Fmt.Vnd(diff))</span></td></tr> }</table></div>
+    </div>
+}
+else
+{
+    <div class="card scroll">
+        @if (!logs.Any()) { <div class="empty">Chưa có thao tác nào.</div> }
+        <table><thead><tr><th>Thời gian</th><th>Người làm</th><th>Thao tác</th><th>Chi tiết</th></tr></thead>
+        @foreach (var l in logs) { <tr><td class="nowrap">@Fmt.Dmy(l.At) @Fmt.Hm(l.At)</td><td>@l.Actor</td><td><span class="chip">@l.Action</span></td><td>@l.Detail</td></tr> }</table></div>
+}

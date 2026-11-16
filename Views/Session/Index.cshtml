@@ -1,0 +1,123 @@
+﻿@{
+    Layout = null;
+    var returnUrl = ViewData["ReturnUrl"] as string;
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Đăng nhập - Quản Lý Nhà Hàng</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: "Segoe UI", system-ui, sans-serif;
+            background: #111827;
+            color: #f3f4f6;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 380px;
+            padding: 32px;
+            border-radius: 14px;
+            background: #1f2937;
+            box-shadow: 0 10px 30px rgba(0,0,0,.4);
+        }
+
+        h1 {
+            margin: 0 0 4px;
+            font-size: 22px;
+        }
+
+        p.sub {
+            margin: 0 0 24px;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #d1d5db;
+        }
+
+        input[type=text] {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 8px;
+            border: 1px solid #374151;
+            background: #111827;
+            color: #f3f4f6;
+            font-size: 16px;
+            outline: none;
+        }
+
+            input[type=text]:focus {
+                border-color: #f59e0b;
+            }
+
+        button {
+            width: 100%;
+            margin-top: 18px;
+            padding: 12px;
+            border: 0;
+            border-radius: 8px;
+            background: #f59e0b;
+            color: #111827;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+            button:hover {
+                background: #fbbf24;
+            }
+
+        .error {
+            margin-bottom: 16px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: #7f1d1d;
+            color: #fecaca;
+            font-size: 14px;
+        }
+
+        .hint {
+            margin-top: 16px;
+            font-size: 13px;
+            color: #9ca3af;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Quản Lý Nhà Hàng</h1>
+        <p class="sub">Đăng nhập bằng mã nhân viên</p>
+
+        @if (ViewBag.Error != null)
+        {
+            <div class="error">@ViewBag.Error</div>
+        }
+
+        <form method="post" action="/Session/Index">
+            <input type="hidden" name="returnUrl" value="@returnUrl" />
+            <label for="username">Mã nhân viên</label>
+            <input type="text" id="username" name="username" placeholder="VD: NV001" autocomplete="off" autofocus required />
+            <button type="submit">Đăng nhập</button>
+        </form>
+
+        <div class="hint">Mã nhân viên được tạo sẵn trong dữ liệu mẫu (NV001, NV002, ...)</div>
+    </div>
+</body>
+</html>

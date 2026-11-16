@@ -1,0 +1,21 @@
+@model CartVM
+@{ ViewData["Title"] = "Hóa đơn"; var o = Model.Order; var b = Model.Bill; var pay = ViewBag.Payment as Payment; var lines = o.Lines.Where(l => l.Status != St.Cancel).ToList(); }
+<div class="head noprint"><div><h1>Hóa đơn #@o.Id</h1><p><span class="chip @Fmt.Chip(o.Status)">@o.Status</span></p></div>
+    <div style="display:flex;gap:8px"><button class="btn p" onclick="window.print()">In hóa đơn</button><a class="btn" asp-controller="Tables" asp-action="Index">Về sơ đồ bàn</a></div></div>
+<div class="rcpt">
+    <div style="text-align:center"><b style="font-size:1.2rem">@o.Branch.Name</b><div class="small">@o.Branch.Address · @o.Branch.Phone</div></div>
+    <hr />
+    <div class="small">@(o.Table?.Name ?? "Mang về") · @o.Pax khách<br />@Fmt.Dmy(o.OpenedAt) @Fmt.Hm(o.OpenedAt) – @Fmt.Hm(o.ClosedAt)</div>
+    <table style="margin-top:8px">
+        @foreach (var l in lines) { <tr><td>@l.Name<div class="small muted">@l.Qty × @Fmt.Vnd(l.Price)</div></td><td class="right">@Fmt.Vnd(l.Qty * l.Price)</td></tr> }
+    </table>
+    <hr />
+    <div class="sum"><span>Tạm tính</span><span>@Fmt.Vnd(b.Sub)</span></div>
+    @if (b.Disc > 0) { <div class="sum"><span>Giảm giá</span><span>−@Fmt.Vnd(b.Disc)</span></div> }
+    <div class="sum"><span>Phí phục vụ</span><span>@Fmt.Vnd(b.Fee)</span></div>
+    <div class="sum"><span>VAT</span><span>@Fmt.Vnd(b.Vat)</span></div>
+    @if (b.Deposit > 0) { <div class="sum"><span>Đã đặt cọc</span><span>−@Fmt.Vnd(b.Deposit)</span></div> }
+    <div class="sum t"><span>Tổng cộng</span><span>@Fmt.Vnd(o.Status == St.Paid ? o.Total : b.Total)</span></div>
+    @if (pay != null) { <div class="small muted" style="margin-top:6px">Thanh toán: @pay.Method lúc @Fmt.Hm(pay.PaidAt)</div> }
+    <p style="text-align:center;margin:14px 0 0" class="small">Cảm ơn quý khách. Hẹn gặp lại!</p>
+</div>

@@ -1,0 +1,44 @@
+@model List<OrderLine>
+@functions {
+    string Spot(OrderLine l) => (l.Order.Table?.Name ?? "Mang về");
+}
+@{
+    var wait = Model.Where(l => l.Status == St.Wait).ToList();
+    var cook = Model.Where(l => l.Status == St.Cook).ToList();
+    var done = Model.Where(l => l.Status == St.Done).ToList();
+}
+<div class="kb">
+    <div class="col"><h2>Chờ chế biến <span class="chip a">@wait.Count</span></h2>
+        @if (!wait.Any()) { <div class="empty">Không có món chờ.</div> }
+        @foreach (var l in wait)
+        {
+            <div class="tk w @(l.Priority ? "hot" : "")">
+                <div class="t1"><span>@l.Qty × @l.Name</span><span>@Spot(l)</span></div>
+                <div class="t2">Đơn #@l.OrderId · chờ <span data-since="@((l.SentAt ?? l.Order.OpenedAt).ToString("s"))" data-limit="@(Math.Max(1, l.PrepMinutes))"></span>@if (l.Priority) { <b class="late"> · ƯU TIÊN</b> }</div>
+                @if (!string.IsNullOrEmpty(l.Note)) { <div class="note" style="margin-bottom:8px">Ghi chú: @l.Note</div> }
+                <div style="display:flex;gap:6px"><button class="btn p" style="flex:1" data-post="/Kitchen/Start" data-body="id=@l.Id" data-target="#board">Bắt đầu làm</button>
+                    <button class="btn" data-post="/Kitchen/Priority" data-body="id=@l.Id" data-target="#board" aria-label="Đánh dấu ưu tiên">@(l.Priority ? "Bỏ ưu tiên" : "Ưu tiên")</button></div>
+            </div>
+        }
+    </div>
+    <div class="col"><h2>Đang chế biến <span class="chip b">@cook.Count</span></h2>
+        @if (!cook.Any()) { <div class="empty">Chưa có món nào đang làm.</div> }
+        @foreach (var l in cook)
+        {
+            <div class="tk c @(l.Priority ? "hot" : "")">
+                <div class="t1"><span>@l.Qty × @l.Name</span><span>@Spot(l)</span></div>
+                <div class="t2">Dự kiến @l.PrepMinutes phút · đã <span data-since="@((l.StartedAt ?? l.SentAt ?? l.Order.OpenedAt).ToString("s"))" data-limit="@(Math.Max(1, l.PrepMinutes))"></span></div>
+                @if (!string.IsNullOrEmpty(l.Note)) { <div class="note" style="margin-bottom:8px">Ghi chú: @l.Note</div> }
+                <button class="btn p w" data-post="/Kitchen/Done" data-body="id=@l.Id" data-target="#board">Xong món</button>
+            </div>
+        }
+    </div>
+    <div class="col"><h2>Chờ mang ra <span class="chip g">@done.Count</span></h2>
+        @if (!done.Any()) { <div class="empty">Chưa có món nào xong.</div> }
+        @foreach (var l in done)
+        {
+            <div class="tk d"><div class="t1"><span>@l.Qty × @l.Name</span><span>@Spot(l)</span></div>
+                <div class="t2">Xong lúc @Fmt.Hm(l.DoneAt) · phục vụ sẽ xác nhận khi mang ra bàn</div></div>
+        }
+    </div>
+</div>
