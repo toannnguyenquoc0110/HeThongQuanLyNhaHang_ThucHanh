@@ -1,4 +1,0 @@
-@model List<QuanLyNhaHang.Models.Order>
-@{ Layout = "_CustomerLayout"; }
-@{ ViewData["Title"] = "Lịch sử đơn hàng"; }
-<div class="container py-4"><h1>Lịch sử đơn hàng</h1><div class="table-responsive"><table class="table"><thead><tr><th>Mã</th><th>Ngày đặt</th><th>Chi nhánh</th><th>Nhận hàng</th><th>Trạng thái</th><th></th></tr></thead><tbody>@foreach(var o in Model){<tr><td>#@o.Id</td><td>@o.OpenedAt.ToString("dd/MM/yyyy HH:mm")</td><td>@o.Branch?.Name</td><td>@o.FulfillmentType</td><td>@o.Status</td><td><a href="/khach-hang/don-hang/@o.Id">Chi tiết</a></td></tr>}</tbody></table></div></div>
